@@ -1,0 +1,82 @@
+{
+    "workbench.iconTheme": "vscode-icons",
+    "jupyter.askForKernelRestart": false,
+    "terminal.integrated.inheritEnv": false,
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "ms-python.black-formatter",
+    "git.confirmSync": false,
+    "editor.wordWrapColumn": 80,
+    "git.autofetch": true,
+    "git.enableSmartCommit": true, 
+    "[rust]": {
+        "editor.defaultFormatter": "rust-lang.rust-analyzer",
+        "editor.formatOnSave": true 
+    },
+    "[python]": {
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": "explicit"
+    },
+    "editor.defaultFormatter": "ms-python.black-formatter"
+  },
+    "github.copilot.enable": {
+        "*": true,
+        "plaintext": false,
+        "markdown": false,
+        "scminput": false,
+        "rust": false,
+        "python": false
+    },
+    "files.exclude": {
+        "**/__pycache__": true,
+        "**/.ipynb_checkpoints/": true,
+        "**/**.egg-info/": true
+    },
+    "files.watcherExclude": {
+        "**/__pycache__": true
+    },
+    "search.exclude": {
+        "**/__pycache__": true
+    },
+    "github.copilot.editor.enableAutoCompletions": true,
+    "html.format.indentHandlebars": true,
+    "html.format.indentInnerHtml": true,
+    "html.format.templating": true,
+    "html.format.wrapLineLength": 80,
+    "[html]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode"
+    },
+    "[css]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode"
+    },
+    "[javascript]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode"
+    },
+    "[snippets]": {
+        "editor.defaultFormatter": "vscode.json-language-features"
+    },
+    "cmake.options.statusBarVisibility": "visible",
+    "[cpp]": {
+        "editor.defaultFormatter": "ms-vscode.cpptools"
+    },
+    "notebook.defaultFormatter": "ms-python.black-formatter",
+    "ruff.showNotifications": "always",
+    "ruff.nativeServer": true,
+    "ruff.lint.extendSelect": [
+        "ALL"
+    ],
+    "ruff.configuration": "pyproject.toml",
+    "ruff.exclude": [
+        "D101",
+        "ANN101",
+        "ANN201"
+    ],
+    "autoDocstring.docstringFormat": "one-line-sphinx",
+    "ruff.lint.ignore": [
+        "ANN101",
+        "D102",
+        "ANN201",
+        "ANN204",
+        "D107"
+    ]
+}

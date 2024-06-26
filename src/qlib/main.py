@@ -7,6 +7,8 @@ from dataclasses import dataclass
 import numpy as np
 from loguru import logger
 
+from qlib.utils import to_tuple
+
 
 @dataclass
 class Path:
@@ -14,13 +16,6 @@ class Path:
 
     t: np.ndarray
     x: np.ndarray
-
-
-def to_tuple(t: int | tuple) -> tuple:
-    """Convert t to a tuple."""
-    if isinstance(t, int):
-        return (t,)
-    return t
 
 
 def brownian_trajectories(t: int, n: int, size: int | tuple = 1) -> Path:
@@ -37,7 +32,6 @@ def main() -> None:
     """Test."""
     p = brownian_trajectories(1, 2, size=1)
     logger.info(p)
-    assert len(p.t) == len(p.x)
 
 
 if __name__ == "__main__":

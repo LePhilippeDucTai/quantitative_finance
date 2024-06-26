@@ -3,7 +3,7 @@ channels:
   - defaults
 
 dependencies:
-- python=3.12
+- python=3.11
 - numpy
 - numba
 - pandas
@@ -15,4 +15,7 @@ dependencies:
   - black
   - ruff
   - pytest
-  - e .
+  - jupyterlab
+  - ipython
+  - ipykernel
+  - -e .

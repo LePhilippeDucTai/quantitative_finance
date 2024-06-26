@@ -1,0 +1,9 @@
+[build-system]
+requires= ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.ruff]
+lint_select = ["E", "F", "W", "C", "UP", "I001"]
+lint.ignore = []
+lint.fixable = ["ALL"]
+lint.unfixable = []

@@ -84,7 +84,7 @@ class ItoProcess:
         x0: float,
         maturity: float,
         size: tuple[int],
-        n_dyadic: int = 6,
+        n_dyadic: int = N_DYADIC,
     ) -> Path:
         time_grid = TimeGrid(maturity, n_dyadic)
         dt, n_t, t = time_grid.dt, time_grid.n_dates, time_grid.t
@@ -150,7 +150,7 @@ class BlackScholesModelMC(ItoProcess):
         return f
 
     @time_it
-    def mc_exact(self, x0, maturity, size, n_dyadic: int = 6):
+    def mc_exact(self, x0, maturity, size, n_dyadic: int = N_DYADIC):
         r = self.bs_params.r
         σ = self.bs_params.sig
         return bs_exact_mc(x0, r, σ, maturity, size, n_dyadic)

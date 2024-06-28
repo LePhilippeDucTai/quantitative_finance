@@ -7,11 +7,14 @@ import numba
 import numpy as np
 from scipy.special import ndtr
 
+import qlib.payoff as payoff
 from qlib.brownian import Path, TimeGrid, brownian_trajectories
+from qlib.utils.logger import logger
 from qlib.utils.misc import to_tuple
 from qlib.utils.timing import time_it
 
-N_DYADIC = 10  # Gives by default for each time interval [t, t + 1], 2 ** 6 = 64 points
+# Gives by default for each time interval [t, t + 1], 2 ** 10 = 1024 points
+N_DYADIC = 10
 
 
 @numba.njit
@@ -118,7 +121,7 @@ class BlackScholesModelDeterministic:
     def put(self, s: float, time_to_maturity: float, k: float) -> float:
         """Calculate the price of a put option using call-put parity."""
         t = time_to_maturity
-        return self.call(t, k) - s + k * np.exp(-self.bs_params.r * t)
+        return self.call(s, t, k) - s + k * np.exp(-self.bs_params.r * t)
 
 
 class BlackScholesModelMC(ItoProcess):
@@ -166,14 +169,41 @@ def bs_exact_mc(
     return Path(tk, xk)
 
 
+def option_price(payoff: callable, paths: Path, *args, **kwargs):
+    return np.mean(payoff(paths, *args, **kwargs))
+
+
 def main() -> None:
     """Compute."""
-    bs = BlackScholesParameters(r=0.1, sig=0.1)
+
+    K = 1.5
+    R = 0.1
+    T = 5
+    s0 = 1
+    sigma = 0.1
+    n_mc = 20000
+
+    bs = BlackScholesParameters(r=R, sig=sigma)
     bs_model_mc = BlackScholesModelMC(bs)
-    path = bs_model_mc.mc_euler(1, size=1000, maturity=5)
-    s = bs_model_mc.mc_exact(3, size=1000, maturity=5)
-    path.plot()
-    s.plot()
+    euler_paths = bs_model_mc.mc_euler(s0, size=n_mc, maturity=T)
+    exact_paths = bs_model_mc.mc_exact(s0, size=n_mc, maturity=T)
+
+    call_price_mc = option_price(payoff.call, euler_paths, r=R, k_strike=K, T=T)
+    call_price_mc_exact = option_price(payoff.call, exact_paths, r=R, k_strike=K, T=T)
+    call_price_det = BlackScholesModelDeterministic(bs).call(s0, T, K)
+
+    logger.info(f"{call_price_mc=}")
+    logger.info(f"{call_price_mc_exact=}")
+    logger.info(f"{call_price_det=}")
+    logger.info("------------------")
+
+    put_price_mc = option_price(payoff.put, euler_paths, r=R, k_strike=K, T=T)
+    put_price_mc_exact = option_price(payoff.put, exact_paths, r=R, k_strike=K, T=T)
+    put_price_det = BlackScholesModelDeterministic(bs).put(s0, T, K)
+
+    logger.info(f"{put_price_mc=}")
+    logger.info(f"{put_price_mc_exact=}")
+    logger.info(f"{put_price_det=}")
 
 
 if __name__ == "__main__":

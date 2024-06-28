@@ -5,9 +5,12 @@ import numpy as np
 from qlib.brownian import Path
 
 
-def call(paths: Path, r: float, k_strike: float, T: float):
-    return np.exp(-r * T) * (paths.x[..., -1] - k_strike).clip(0)
+def european_call(strike: float) -> callable:
+    def aux(paths: Path):
+        return (paths.x[..., -1] - strike).clip(0)
+
+    return aux
 
 
-def put(paths: Path, r: float, k_strike: float, T: float):
-    return np.exp(-r * T) * (k_strike - paths.x[..., -1]).clip(0)
+def european_put(paths: Path, strike: float) -> callable:
+    return (strike - paths.x[..., -1]).clip(0)

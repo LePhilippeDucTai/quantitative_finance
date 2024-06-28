@@ -169,18 +169,19 @@ def bs_exact_mc(
     return Path(tk, xk)
 
 
-def option_price(payoff: callable, paths: Path, *args, **kwargs):
+def npv(payoff: callable, paths: Path, *args, **kwargs):
     return np.mean(payoff(paths, *args, **kwargs))
 
 
 def main() -> None:
     """Compute."""
 
-    K = 1.5
+    s0 = 10
+    K = s0
     R = 0.1
-    T = 5
-    s0 = 1
-    sigma = 0.1
+    T = 2
+    B = 20
+    sigma = 0.5
     n_mc = 20000
 
     bs = BlackScholesParameters(r=R, sig=sigma)
@@ -188,8 +189,8 @@ def main() -> None:
     euler_paths = bs_model_mc.mc_euler(s0, size=n_mc, maturity=T)
     exact_paths = bs_model_mc.mc_exact(s0, size=n_mc, maturity=T)
 
-    call_price_mc = option_price(payoff.call, euler_paths, r=R, k_strike=K, T=T)
-    call_price_mc_exact = option_price(payoff.call, exact_paths, r=R, k_strike=K, T=T)
+    call_price_mc = npv(payoff.call, euler_paths, r=R, k_strike=K, T=T)
+    call_price_mc_exact = npv(payoff.call, exact_paths, r=R, k_strike=K, T=T)
     call_price_det = BlackScholesModelDeterministic(bs).call(s0, T, K)
 
     logger.info(f"{call_price_mc=}")
@@ -197,13 +198,32 @@ def main() -> None:
     logger.info(f"{call_price_det=}")
     logger.info("------------------")
 
-    put_price_mc = option_price(payoff.put, euler_paths, r=R, k_strike=K, T=T)
-    put_price_mc_exact = option_price(payoff.put, exact_paths, r=R, k_strike=K, T=T)
+    put_price_mc = npv(payoff.put, euler_paths, r=R, k_strike=K, T=T)
+    put_price_mc_exact = npv(payoff.put, exact_paths, r=R, k_strike=K, T=T)
     put_price_det = BlackScholesModelDeterministic(bs).put(s0, T, K)
 
     logger.info(f"{put_price_mc=}")
     logger.info(f"{put_price_mc_exact=}")
     logger.info(f"{put_price_det=}")
+
+    logger.info("-----------------")
+    asian_call_price_mc = npv(payoff.asian_call, euler_paths, r=R, k_strike=K, T=T)
+    logger.info(f"{asian_call_price_mc=}")
+    logger.info("-----------------")
+    barrier_uo_call_price_mc = npv(
+        payoff.up_n_out_call, euler_paths, r=R, k_strike=K, barrier=B, T=T
+    )
+    logger.info(f"{barrier_uo_call_price_mc=}")
+
+    logger.info("-----------------")
+    barrier_do_call_price_mc = npv(
+        payoff.down_n_out_call, euler_paths, r=R, k_strike=K, barrier=5, T=T
+    )
+    logger.info(f"{barrier_do_call_price_mc=}")
+
+    logger.info("-----------------")
+    digital_option_price = npv(payoff.digital_option, euler_paths, r=R, k_strike=K, T=T)
+    logger.info(f"{digital_option_price=}")
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-from qlib.black_scholes_model import BlackScholesModelDeterministic
+from qlib.models.black_scholes_model import BlackScholesModelDeterministic
 
 
 def bs_parameters_fixtures():

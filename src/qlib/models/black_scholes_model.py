@@ -3,14 +3,13 @@
 from typing import Any
 
 import numpy as np
-from scipy.special import ndtr
-
 from qlib import payoff
 from qlib.brownian import Path, brownian_trajectories
 from qlib.constant_parameters import DEFAULT_RNG, N_DYADIC, N_MC
 from qlib.traits import EulerSchema, EulerSchemaJit
 from qlib.utils.logger import logger
 from qlib.utils.timing import time_it
+from scipy.special import ndtr
 
 
 def bs_mu(t, x, r, sigma, *args):
@@ -128,11 +127,11 @@ class AsianOption:
 
 def main() -> None:
     """Compute and test."""
-    s0 = 10
+    s0 = 100
     strike_k = s0
     rfr = 0.1
     tmt = 2
-    barrier = 20
+    # barrier = 20
     sigma = 0.5
     n_mc = N_MC
 
@@ -163,7 +162,7 @@ def main() -> None:
     # logger.info("------------------")
 
     # put_price_mc = npv(payoff.put, euler_paths, r=rfr, k_strike=strike_k, tmt=tmt)
-    # put_price_mc_exact = npv(payoff.put, exact_paths, r=rfr, k_strike=strike_k, tmt=tmt)
+    # put_price_mc_exact = npv(payoff.put, exact_paths, r=rfr, k_strike=strike_k, tmt=tmt)  # noqa: E501
     # put_price_det = bs_model_det.put(s0, tmt, strike_k)
 
     # logger.info(f"{put_price_mc=}")

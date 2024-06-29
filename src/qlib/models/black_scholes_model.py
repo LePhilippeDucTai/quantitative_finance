@@ -151,16 +151,12 @@ def main() -> None:
     sigma = 0.5
 
     bs_model_mc = BlackScholesModel(s0, tmt, rfr, sigma)
-    # bs_model_det = BlackScholesModelDeterministic(rfr, sigma)
     european = EuropeanOption(bs_model_mc, strike_k, tmt)
-    # euler_paths = bs_model_mc.mc_euler_jit(s0, size=n_mc, time_horizon=tmt)
-    # exact_paths = bs_model_mc.mc_exact(s0, size=n_mc, maturity=tmt)
-    # terminal_paths = bs_model_mc.mc_terminal(s0, size=n_mc, maturity=tmt)
-
     call_price_det = european.call_npv(ComputationKind.DET)
     call_price_euler = european.call_npv(ComputationKind.EULER)
     call_price_euler_jit = european.call_npv(ComputationKind.EULER_JIT)
     call_price_terminal = european.call_npv(ComputationKind.TERMINAL)
+
     logger.info(f"{call_price_det=}")
     logger.info(f"{call_price_terminal=}")
     logger.info(f"{call_price_euler=}")

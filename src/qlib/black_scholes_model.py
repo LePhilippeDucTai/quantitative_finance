@@ -9,56 +9,12 @@ import numpy as np
 from scipy.special import ndtr
 
 from qlib import payoff
-from qlib.brownian import Path, TimeGrid, brownian_trajectories
+from qlib.brownian import Path, brownian_trajectories
+from qlib.constant_parameters import N_DYADIC, N_MC
+from qlib.optimized_numba import bs_mu_jit, bs_sigma_jit
+from qlib.traits import ItoProcess
 from qlib.utils.logger import logger
-from qlib.utils.misc import to_tuple
 from qlib.utils.timing import time_it
-
-# Gives by default for each time interval [t, t + 1], 2 ** 10 = 1024 points
-N_DYADIC = 10
-
-
-@numba.njit
-def euler_discretization(  # noqa: PLR0913
-    mu_jit: callable,
-    sigma_jit: callable,
-    t: np.ndarray,
-    xt: np.ndarray,
-    n_t: int,
-    g: np.ndarray,
-    dt: float,
-) -> np.ndarray:
-    """Euler schema discretization for Ito Processes SDE."""
-    for i in range(n_t - 1):
-        t_i, x_i = t[i], xt[..., i]
-        g_i = g[..., i]
-        μ, σ = mu_jit(t_i, x_i), sigma_jit(t_i, x_i)
-        xt[..., i + 1] = x_i + μ * dt + σ * g_i
-    return xt
-
-
-@numba.njit
-def bs_mu_jit(r: float, _: float, x: float) -> float:
-    """Black-Scholes constant drift."""
-    return r * x
-
-
-@numba.njit
-def bs_sigma_jit(sig: float, _: float, x: float) -> float:
-    """Black-Scholes constant sigma."""
-    return sig * x
-
-
-@numba.njit
-def dummy(t: float, x: float):
-    """Define a function for compilation."""
-    return t * x
-
-
-# Compiling the functions
-_ = bs_mu_jit(0, 0, 0)
-_ = bs_sigma_jit(0, 0, 0)
-_ = euler_discretization(dummy, dummy, np.arange(1), np.arange(1), 1, np.arange(1), 1)
 
 
 @dataclass
@@ -67,44 +23,6 @@ class BlackScholesParameters:
 
     r: float
     sig: float
-
-
-class ItoProcess:
-    """Base class for Ito Processes.
-
-    Implements generic Monte-Carlo Euler with numba's just-in-time compilation
-
-    Diffusion :
-    dXt = mu(t, Xt)dt + sigma(t, Xt)dWt
-    This class gives an interface to define general Ito Processes
-    by giving the mu and sigma functions.
-    """
-
-    def mu_jit(self):
-        return 0
-
-    def sigma_jit(self):
-        return 0
-
-    @time_it
-    def mc_euler(
-        self,
-        x0: float,
-        maturity: float,
-        size: tuple[int],
-        n_dyadic: int = N_DYADIC,
-    ) -> Path:
-        time_grid = TimeGrid(maturity, n_dyadic)
-        dt, n_t, t = time_grid.dt, time_grid.n_dates, time_grid.t
-        size = to_tuple(size)
-        g = np.random.default_rng().normal(scale=np.sqrt(dt), size=(*size, n_t))
-        xt = np.empty_like(g)
-
-        mu_jit = self.mu_jit
-        sigma_jit = self.sigma_jit
-        xt[..., 0] = x0
-        xt = euler_discretization(mu_jit, sigma_jit, t, xt, n_t, g, dt)
-        return Path(t, xt)
 
 
 class BlackScholesModelDeterministic:
@@ -152,7 +70,7 @@ class BlackScholesModelMC(ItoProcess):
 
         @numba.njit
         def f(_: float, _xt: float) -> float:
-            return sig * _xt
+            return bs_sigma_jit(sig, _, _xt)
 
         f(0, 0)  # compiles jit function
         return f
@@ -199,7 +117,7 @@ def main() -> None:
     tmt = 2
     barrier = 20
     sigma = 0.5
-    n_mc = 20000
+    n_mc = N_MC
 
     bs = BlackScholesParameters(r=rfr, sig=sigma)
     bs_model_mc = BlackScholesModelMC(bs)

@@ -9,8 +9,8 @@
     "git.autofetch": true,
     "git.enableSmartCommit": true, 
     "[rust]": {
-        "editor.defaultFormatter": "rust-lang.rust-analyzer",
-        "editor.formatOnSave": true 
+        "editor.defaultFormatter": "rust-lang.rust-analyzer", 
+        "editor.formatOnSave": true
     },
     "[python]": {
     "editor.formatOnSave": true,
@@ -63,7 +63,7 @@
     "ruff.showNotifications": "always",
     "ruff.nativeServer": true,
     "ruff.lint.extendSelect": [
-        "ALL"
+        "E", "W", "F", "C", "R", "I"
     ],
     "ruff.configuration": "pyproject.toml",
     "ruff.exclude": [
@@ -78,5 +78,6 @@
         "ANN201",
         "ANN204",
         "D107"
-    ]
+    ],
+    "editor.unicodeHighlight.ambiguousCharacters": false
 }

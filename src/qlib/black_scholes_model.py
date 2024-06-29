@@ -12,7 +12,7 @@ from qlib import payoff
 from qlib.brownian import Path, brownian_trajectories
 from qlib.constant_parameters import N_DYADIC, N_MC
 from qlib.optimized_numba import bs_mu_jit, bs_sigma_jit
-from qlib.traits import ItoProcess
+from qlib.traits import EulerSchema, EulerSchemaJit
 from qlib.utils.logger import logger
 from qlib.utils.timing import time_it
 
@@ -25,37 +25,17 @@ class BlackScholesParameters:
     sig: float
 
 
-class BlackScholesModelDeterministic:
-    """Black-Scholes model for pricing options."""
-
-    def __init__(self, bs: BlackScholesParameters) -> None:
-        """Initialize the model with a BlackScholesModelParameters object."""
-        self.bs_params = bs
-
-    def call(self, s: float, time_to_maturity: float, k: float) -> float:
-        """Calculate the price of a call option."""
-        t = time_to_maturity
-        r = self.bs_params.r
-        sigma = self.bs_params.sig
-        d1 = (1 / (sigma * (t**0.5))) * (np.log(s / k) + (r + 0.5 * sigma**2) * t)
-        d2 = d1 - sigma * (t**0.5)
-        return s * ndtr(d1) - k * np.exp(-r * t) * ndtr(d2)
-
-    def put(self, s: float, time_to_maturity: float, k: float) -> float:
-        """Calculate the price of a put option using call-put parity."""
-        t = time_to_maturity
-        return self.call(s, t, k) - s + k * np.exp(-self.bs_params.r * t)
-
-
-class BlackScholesModelMC(ItoProcess):
+class BlackScholesModel(EulerSchemaJit, EulerSchema):
     """Black-Scholes model pricing by Monte-Carlo."""
 
-    def __init__(self, bs_params: BlackScholesParameters):
-        self.bs_params = bs_params
+    def __init__(self, risk_free_rate: float, sigma: float):
+        """Risk_free_rate: will become TermStructure in the future."""
+        self.r = risk_free_rate
+        self.sig = sigma
 
     @ft.cached_property
     def mu_jit(self) -> callable:
-        r = self.bs_params.r
+        r = self.r
 
         @numba.njit
         def f(_: float, _xt: float) -> float:
@@ -66,7 +46,7 @@ class BlackScholesModelMC(ItoProcess):
 
     @ft.cached_property
     def sigma_jit(self) -> callable:
-        sig = self.bs_params.sig
+        sig = self.sig
 
         @numba.njit
         def f(_: float, _xt: float) -> float:
@@ -83,12 +63,34 @@ class BlackScholesModelMC(ItoProcess):
         size: float,
         n_dyadic: int = N_DYADIC,
     ):
-        r = self.bs_params.r
-        σ = self.bs_params.sig
+        r = self.r
+        σ = self.sig
         return bs_exact_mc(x0, r, σ, maturity, size, n_dyadic)
 
 
-def bs_exact_mc(  # noqa: PLR0913
+class BlackScholesModelDeterministic(BlackScholesModel):
+    """Black-Scholes model for pricing options."""
+
+    def __init__(self, *args, **kwargs) -> None:
+        """Initialize the model with a BlackScholesModelParameters object."""
+        super().__init__(*args, **kwargs)
+
+    def call(self, s: float, time_to_maturity: float, k: float) -> float:
+        """Calculate the price of a call option."""
+        t = time_to_maturity
+        r = self.r
+        sigma = self.sig
+        d1 = (1 / (sigma * (t**0.5))) * (np.log(s / k) + (r + 0.5 * sigma**2) * t)
+        d2 = d1 - sigma * (t**0.5)
+        return s * ndtr(d1) - k * np.exp(-r * t) * ndtr(d2)
+
+    def put(self, s: float, time_to_maturity: float, k: float) -> float:
+        """Calculate the price of a put option using call-put parity."""
+        t = time_to_maturity
+        return self.call(s, t, k) - s + k * np.exp(-self.r * t)
+
+
+def bs_exact_mc(
     s0: float,
     r: float,
     sigma: float,
@@ -119,16 +121,16 @@ def main() -> None:
     sigma = 0.5
     n_mc = N_MC
 
-    bs = BlackScholesParameters(r=rfr, sig=sigma)
-    bs_model_mc = BlackScholesModelMC(bs)
-    euler_paths = bs_model_mc.mc_euler(s0, size=n_mc, maturity=tmt)
+    bs_model_mc = BlackScholesModel(rfr, sigma)
+    bs_model_det = BlackScholesModelDeterministic(rfr, sigma)
+    euler_paths = bs_model_mc.mc_euler_jit(s0, size=n_mc, maturity=tmt)
     exact_paths = bs_model_mc.mc_exact(s0, size=n_mc, maturity=tmt)
 
     call_price_mc = npv(payoff.call, euler_paths, r=rfr, k_strike=strike_k, tmt=tmt)
     call_price_mc_exact = npv(
         payoff.call, exact_paths, r=rfr, k_strike=strike_k, tmt=tmt
     )
-    call_price_det = BlackScholesModelDeterministic(bs).call(s0, tmt, strike_k)
+    call_price_det = bs_model_det.call(s0, tmt, strike_k)
 
     logger.info(f"{call_price_mc=}")
     logger.info(f"{call_price_mc_exact=}")
@@ -137,7 +139,7 @@ def main() -> None:
 
     put_price_mc = npv(payoff.put, euler_paths, r=rfr, k_strike=strike_k, tmt=tmt)
     put_price_mc_exact = npv(payoff.put, exact_paths, r=rfr, k_strike=strike_k, tmt=tmt)
-    put_price_det = BlackScholesModelDeterministic(bs).put(s0, tmt, strike_k)
+    put_price_det = bs_model_det.put(s0, tmt, strike_k)
 
     logger.info(f"{put_price_mc=}")
     logger.info(f"{put_price_mc_exact=}")

@@ -21,7 +21,7 @@ def dummy(t: float, x: float):
 
 
 @numba.njit
-def euler_discretization(  # noqa: PLR0913
+def euler_discretization_jit(  # noqa: PLR0913
     mu_jit: callable,
     sigma_jit: callable,
     t: np.ndarray,
@@ -42,4 +42,6 @@ def euler_discretization(  # noqa: PLR0913
 # Compiling the functions
 _ = bs_mu_jit(0, 0, 0)
 _ = bs_sigma_jit(0, 0, 0)
-_ = euler_discretization(dummy, dummy, np.arange(1), np.arange(1), 1, np.arange(1), 1)
+_ = euler_discretization_jit(
+    dummy, dummy, np.arange(1), np.arange(1), 1, np.arange(1), 1
+)

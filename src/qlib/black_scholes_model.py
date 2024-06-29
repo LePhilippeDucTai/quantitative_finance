@@ -206,8 +206,10 @@ def main() -> None:
     euler_paths = bs_model_mc.mc_euler(s0, size=n_mc, maturity=tmt)
     exact_paths = bs_model_mc.mc_exact(s0, size=n_mc, maturity=tmt)
 
-    call_price_mc = npv(payoff.call, euler_paths, r=rfr, k_strike=strike_k, T=tmt)
-    call_price_mc_exact = npv(payoff.call, exact_paths, r=rfr, k_strike=strike_k, T=tmt)
+    call_price_mc = npv(payoff.call, euler_paths, r=rfr, k_strike=strike_k, tmt=tmt)
+    call_price_mc_exact = npv(
+        payoff.call, exact_paths, r=rfr, k_strike=strike_k, tmt=tmt
+    )
     call_price_det = BlackScholesModelDeterministic(bs).call(s0, tmt, strike_k)
 
     logger.info(f"{call_price_mc=}")
@@ -215,8 +217,8 @@ def main() -> None:
     logger.info(f"{call_price_det=}")
     logger.info("------------------")
 
-    put_price_mc = npv(payoff.put, euler_paths, r=rfr, k_strike=strike_k, T=tmt)
-    put_price_mc_exact = npv(payoff.put, exact_paths, r=rfr, k_strike=strike_k, T=tmt)
+    put_price_mc = npv(payoff.put, euler_paths, r=rfr, k_strike=strike_k, tmt=tmt)
+    put_price_mc_exact = npv(payoff.put, exact_paths, r=rfr, k_strike=strike_k, tmt=tmt)
     put_price_det = BlackScholesModelDeterministic(bs).put(s0, tmt, strike_k)
 
     logger.info(f"{put_price_mc=}")
@@ -229,7 +231,7 @@ def main() -> None:
         euler_paths,
         r=rfr,
         k_strike=strike_k,
-        T=tmt,
+        tmt=tmt,
     )
     logger.info(f"{asian_call_price_mc=}")
     logger.info("-----------------")
@@ -239,7 +241,7 @@ def main() -> None:
         r=rfr,
         k_strike=strike_k,
         barrier=barrier,
-        T=tmt,
+        tmt=tmt,
     )
     logger.info(f"{barrier_uo_call_price_mc=}")
 
@@ -250,7 +252,7 @@ def main() -> None:
         r=rfr,
         k_strike=strike_k,
         barrier=5,
-        T=tmt,
+        tmt=tmt,
     )
     logger.info(f"{barrier_do_call_price_mc=}")
 
@@ -260,7 +262,7 @@ def main() -> None:
         euler_paths,
         r=rfr,
         k_strike=strike_k,
-        T=tmt,
+        tmt=tmt,
     )
     logger.info(f"{digital_option_price=}")
 

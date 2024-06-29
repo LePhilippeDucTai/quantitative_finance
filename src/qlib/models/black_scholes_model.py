@@ -1,7 +1,7 @@
 """Black-Scholes model for pricing options."""
 
 import numpy as np
-from qlib import payoff
+from qlib import payoffs
 from qlib.constant_parameters import DEFAULT_RNG, N_DYADIC, N_MC
 from qlib.models.brownian import Path, brownian_trajectories
 from qlib.traits import EulerSchema, EulerSchemaJit
@@ -97,11 +97,11 @@ class EuropeanOption:
         self.maturity = maturity
 
     def call_npv(self, sample_paths: Path, r: float):
-        h = payoff.call(sample_paths.x[..., -1], r, self.strike_k, self.maturity)
+        h = payoffs.call(sample_paths.x[..., -1], r, self.strike_k, self.maturity)
         return np.mean(h)
 
     def put_npv(self, sample_paths: Path, r: float):
-        h = payoff.put(sample_paths.x[..., -1], r, self.strike_k, self.maturity)
+        h = payoffs.put(sample_paths.x[..., -1], r, self.strike_k, self.maturity)
         return np.mean(h)
 
 

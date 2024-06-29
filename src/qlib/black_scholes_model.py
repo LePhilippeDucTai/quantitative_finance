@@ -1,28 +1,24 @@
 """Black-Scholes model for pricing options."""
 
-import functools as ft
-from dataclasses import dataclass
 from typing import Any
 
-import numba
 import numpy as np
 from scipy.special import ndtr
 
 from qlib import payoff
 from qlib.brownian import Path, brownian_trajectories
-from qlib.constant_parameters import N_DYADIC, N_MC
-from qlib.optimized_numba import bs_mu_jit, bs_sigma_jit
+from qlib.constant_parameters import DEFAULT_RNG, N_DYADIC, N_MC
 from qlib.traits import EulerSchema, EulerSchemaJit
 from qlib.utils.logger import logger
 from qlib.utils.timing import time_it
 
 
-@dataclass
-class BlackScholesParameters:
-    """Parameters for the Black-Scholes model."""
+def bs_mu(t, x, r, sigma, *args):
+    return r * x
 
-    r: float
-    sig: float
+
+def bs_sigma(t, x, r, sigma, *args):
+    return sigma * x
 
 
 class BlackScholesModel(EulerSchemaJit, EulerSchema):
@@ -32,28 +28,13 @@ class BlackScholesModel(EulerSchemaJit, EulerSchema):
         """Risk_free_rate: will become TermStructure in the future."""
         self.r = risk_free_rate
         self.sig = sigma
+        self.model_args = (risk_free_rate, sigma)
 
-    @ft.cached_property
-    def mu_jit(self) -> callable:
-        r = self.r
+    def mu(self):
+        return bs_mu
 
-        @numba.njit
-        def f(_: float, _xt: float) -> float:
-            return bs_mu_jit(r, _, _xt)
-
-        f(0, 0)  # compiles jit function
-        return f
-
-    @ft.cached_property
-    def sigma_jit(self) -> callable:
-        sig = self.sig
-
-        @numba.njit
-        def f(_: float, _xt: float) -> float:
-            return bs_sigma_jit(sig, _, _xt)
-
-        f(0, 0)  # compiles jit function
-        return f
+    def sigma(self):
+        return bs_sigma
 
     @time_it
     def mc_exact(
@@ -66,6 +47,13 @@ class BlackScholesModel(EulerSchemaJit, EulerSchema):
         r = self.r
         σ = self.sig
         return bs_exact_mc(x0, r, σ, maturity, size, n_dyadic)
+
+    def mc_terminal(self, x0: float, maturity: float, size: float):
+        mu = (self.r - self.sig**2 / 2) * maturity
+        s = self.sig * np.sqrt(maturity)
+        exponential = DEFAULT_RNG.lognormal(mean=mu, sigma=s, size=(size, 1))
+        time = np.array([maturity])
+        return Path(time, x0 * exponential)
 
 
 class BlackScholesModelDeterministic(BlackScholesModel):
@@ -111,6 +99,33 @@ def npv(payoff: callable, paths: Path, *args: tuple, **kwargs: dict[str, Any]):
     return np.mean(payoff(paths, *args, **kwargs))
 
 
+class EuropeanOption:
+    def __init__(self, strike_k: float, maturity: float):
+        self.strike_k = strike_k
+        self.maturity = maturity
+
+    def call_npv(self, sample_paths: Path, r: float):
+        h = payoff.call(sample_paths.x[..., -1], r, self.strike_k, self.maturity)
+        return np.mean(h)
+
+    def put_npv(self, sample_paths: Path, r: float):
+        h = payoff.put(sample_paths.x[..., -1], r, self.strike_k, self.maturity)
+        return np.mean(h)
+
+
+class BarrierOption:
+    def __init__(self, strike_k: float, maturity: float, barrier: float):
+        self.strike_k = strike_k
+        self.maturity = maturity
+        self.barrier = barrier
+
+
+class AsianOption:
+    def __init__(self, strike_k: float, maturity: float):
+        self.strik_k = strike_k
+        self.maturity = maturity
+
+
 def main() -> None:
     """Compute and test."""
     s0 = 10
@@ -123,68 +138,78 @@ def main() -> None:
 
     bs_model_mc = BlackScholesModel(rfr, sigma)
     bs_model_det = BlackScholesModelDeterministic(rfr, sigma)
-    euler_paths = bs_model_mc.mc_euler_jit(s0, size=n_mc, maturity=tmt)
+    european = EuropeanOption(strike_k, tmt)
+    euler_paths = bs_model_mc.mc_euler_jit(s0, size=n_mc, time_horizon=tmt)
     exact_paths = bs_model_mc.mc_exact(s0, size=n_mc, maturity=tmt)
+    terminal_paths = bs_model_mc.mc_terminal(s0, size=n_mc, maturity=tmt)
 
-    call_price_mc = npv(payoff.call, euler_paths, r=rfr, k_strike=strike_k, tmt=tmt)
-    call_price_mc_exact = npv(
-        payoff.call, exact_paths, r=rfr, k_strike=strike_k, tmt=tmt
-    )
+    call_price_terminal = european.call_npv(terminal_paths, rfr)
+    call_price_euler = european.call_npv(euler_paths, rfr)
+    call_price_explicit = european.call_npv(exact_paths, rfr)
     call_price_det = bs_model_det.call(s0, tmt, strike_k)
-
-    logger.info(f"{call_price_mc=}")
-    logger.info(f"{call_price_mc_exact=}")
+    logger.info(f"{call_price_terminal=}")
+    logger.info(f"{call_price_euler=}")
     logger.info(f"{call_price_det=}")
-    logger.info("------------------")
+    logger.info(f"{call_price_explicit=}")
+    # call_price_mc = npv(payoff.call, euler_paths, r=rfr, k_strike=strike_k, tmt=tmt)
+    # call_price_mc_exact = npv(
+    #     payoff.call, exact_paths, r=rfr, k_strike=strike_k, tmt=tmt
+    # )
+    # call_price_det = bs_model_det.call(s0, tmt, strike_k)
 
-    put_price_mc = npv(payoff.put, euler_paths, r=rfr, k_strike=strike_k, tmt=tmt)
-    put_price_mc_exact = npv(payoff.put, exact_paths, r=rfr, k_strike=strike_k, tmt=tmt)
-    put_price_det = bs_model_det.put(s0, tmt, strike_k)
+    # logger.info(f"{call_price_mc=}")
+    # logger.info(f"{call_price_mc_exact=}")
+    # logger.info(f"{call_price_det=}")
+    # logger.info("------------------")
 
-    logger.info(f"{put_price_mc=}")
-    logger.info(f"{put_price_mc_exact=}")
-    logger.info(f"{put_price_det=}")
+    # put_price_mc = npv(payoff.put, euler_paths, r=rfr, k_strike=strike_k, tmt=tmt)
+    # put_price_mc_exact = npv(payoff.put, exact_paths, r=rfr, k_strike=strike_k, tmt=tmt)
+    # put_price_det = bs_model_det.put(s0, tmt, strike_k)
 
-    logger.info("-----------------")
-    asian_call_price_mc = npv(
-        payoff.asian_call,
-        euler_paths,
-        r=rfr,
-        k_strike=strike_k,
-        tmt=tmt,
-    )
-    logger.info(f"{asian_call_price_mc=}")
-    logger.info("-----------------")
-    barrier_uo_call_price_mc = npv(
-        payoff.up_n_out_call,
-        euler_paths,
-        r=rfr,
-        k_strike=strike_k,
-        barrier=barrier,
-        tmt=tmt,
-    )
-    logger.info(f"{barrier_uo_call_price_mc=}")
+    # logger.info(f"{put_price_mc=}")
+    # logger.info(f"{put_price_mc_exact=}")
+    # logger.info(f"{put_price_det=}")
 
-    logger.info("-----------------")
-    barrier_do_call_price_mc = npv(
-        payoff.down_n_out_call,
-        euler_paths,
-        r=rfr,
-        k_strike=strike_k,
-        barrier=5,
-        tmt=tmt,
-    )
-    logger.info(f"{barrier_do_call_price_mc=}")
+    # logger.info("-----------------")
+    # asian_call_price_mc = npv(
+    #     payoff.asian_call,
+    #     euler_paths,
+    #     r=rfr,
+    #     k_strike=strike_k,
+    #     tmt=tmt,
+    # )
+    # logger.info(f"{asian_call_price_mc=}")
+    # logger.info("-----------------")
+    # barrier_uo_call_price_mc = npv(
+    #     payoff.up_n_out_call,
+    #     euler_paths,
+    #     r=rfr,
+    #     k_strike=strike_k,
+    #     barrier=barrier,
+    #     tmt=tmt,
+    # )
+    # logger.info(f"{barrier_uo_call_price_mc=}")
 
-    logger.info("-----------------")
-    digital_option_price = npv(
-        payoff.digital_option,
-        euler_paths,
-        r=rfr,
-        k_strike=strike_k,
-        tmt=tmt,
-    )
-    logger.info(f"{digital_option_price=}")
+    # logger.info("-----------------")
+    # barrier_do_call_price_mc = npv(
+    #     payoff.down_n_out_call,
+    #     euler_paths,
+    #     r=rfr,
+    #     k_strike=strike_k,
+    #     barrier=5,
+    #     tmt=tmt,
+    # )
+    # logger.info(f"{barrier_do_call_price_mc=}")
+
+    # logger.info("-----------------")
+    # digital_option_price = npv(
+    #     payoff.digital_option,
+    #     euler_paths,
+    #     r=rfr,
+    #     k_strike=strike_k,
+    #     tmt=tmt,
+    # )
+    # logger.info(f"{digital_option_price=}")
 
 
 if __name__ == "__main__":

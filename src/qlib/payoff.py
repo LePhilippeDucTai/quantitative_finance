@@ -5,12 +5,12 @@ import numpy as np
 from qlib.brownian import Path
 
 
-def call(paths: Path, r: float, k_strike: float, tmt: float):
-    return np.exp(-r * tmt) * (paths.x[..., -1] - k_strike).clip(0)
+def call(s: np.ndarray, r: float, k_strike: float, tmt: float):
+    return np.exp(-r * tmt) * (s - k_strike).clip(0)
 
 
-def put(paths: Path, r: float, k_strike: float, tmt: float):
-    return np.exp(-r * tmt) * (k_strike - paths.x[..., -1]).clip(0)
+def put(s: np.ndarray, r: float, k_strike: float, tmt: float):
+    return np.exp(-r * tmt) * (k_strike - s).clip(0)
 
 
 def asian_call(paths: Path, r: float, k_strike: float, tmt: float) -> np.ndarray:

@@ -1,4 +1,4 @@
-from qlib.models.black_scholes_model import BlackScholesModelDeterministic
+from qlib.models.black_scholes_model import BlackScholesModel
 
 
 def bs_parameters_fixtures():
@@ -12,11 +12,11 @@ def bs_parameters_fixtures():
 
 def test_deterministic_price():
     rfr, sigma, s0, strike_k, tmt = bs_parameters_fixtures()
-    bs_model_det = BlackScholesModelDeterministic(rfr, sigma)
-    actual = bs_model_det.call(s0, tmt, strike_k)
+    bs_model_det = BlackScholesModel(s0, tmt, rfr, sigma)
+    actual = bs_model_det.call(strike_k)
     expected = 3.063
     assert round(actual, 3) == expected
 
-    actual = bs_model_det.put(s0, tmt, strike_k)
+    actual = bs_model_det.put(strike_k)
     expected = 2.652
     assert round(actual, 3) == expected

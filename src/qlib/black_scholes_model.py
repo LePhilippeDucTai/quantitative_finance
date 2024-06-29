@@ -2,12 +2,13 @@
 
 import functools as ft
 from dataclasses import dataclass
+from typing import Any
 
 import numba
 import numpy as np
 from scipy.special import ndtr
 
-import qlib.payoff as payoff
+from qlib import payoff
 from qlib.brownian import Path, TimeGrid, brownian_trajectories
 from qlib.utils.logger import logger
 from qlib.utils.misc import to_tuple
@@ -18,7 +19,7 @@ N_DYADIC = 10
 
 
 @numba.njit
-def euler_discretization(
+def euler_discretization(  # noqa: PLR0913
     mu_jit: callable,
     sigma_jit: callable,
     t: np.ndarray,
@@ -27,6 +28,7 @@ def euler_discretization(
     g: np.ndarray,
     dt: float,
 ) -> np.ndarray:
+    """Euler schema discretization for Ito Processes SDE."""
     for i in range(n_t - 1):
         t_i, x_i = t[i], xt[..., i]
         g_i = g[..., i]
@@ -36,17 +38,20 @@ def euler_discretization(
 
 
 @numba.njit
-def bs_mu_jit(r, _, x):
+def bs_mu_jit(r: float, _: float, x: float) -> float:
+    """Black-Scholes constant drift."""
     return r * x
 
 
 @numba.njit
-def bs_sigma_jit(sig, _, x):
+def bs_sigma_jit(sig: float, _: float, x: float) -> float:
+    """Black-Scholes constant sigma."""
     return sig * x
 
 
 @numba.njit
-def dummy(t, x):
+def dummy(t: float, x: float):
+    """Define a function for compilation."""
     return t * x
 
 
@@ -153,15 +158,27 @@ class BlackScholesModelMC(ItoProcess):
         return f
 
     @time_it
-    def mc_exact(self, x0, maturity, size, n_dyadic: int = N_DYADIC):
+    def mc_exact(
+        self,
+        x0: float,
+        maturity: float,
+        size: float,
+        n_dyadic: int = N_DYADIC,
+    ):
         r = self.bs_params.r
         σ = self.bs_params.sig
         return bs_exact_mc(x0, r, σ, maturity, size, n_dyadic)
 
 
-def bs_exact_mc(
-    s0: float, r: float, sigma: float, t: float, size: int | tuple[int], n_dyadic: int
+def bs_exact_mc(  # noqa: PLR0913
+    s0: float,
+    r: float,
+    sigma: float,
+    t: float,
+    size: int | tuple[int],
+    n_dyadic: int,
 ) -> Path:
+    """Exact simulation of the underlying in the BS model."""
     brownian = brownian_trajectories(t, size=size, n=n_dyadic)
     tk = brownian.t
     λ = r - 0.5 * sigma**2
@@ -169,60 +186,82 @@ def bs_exact_mc(
     return Path(tk, xk)
 
 
-def npv(payoff: callable, paths: Path, *args, **kwargs):
+def npv(payoff: callable, paths: Path, *args: tuple, **kwargs: dict[str, Any]):
+    """Monte-Carlo expectation."""
     return np.mean(payoff(paths, *args, **kwargs))
 
 
 def main() -> None:
-    """Compute."""
-
+    """Compute and test."""
     s0 = 10
-    K = s0
-    R = 0.1
-    T = 2
-    B = 20
+    strike_k = s0
+    rfr = 0.1
+    tmt = 2
+    barrier = 20
     sigma = 0.5
     n_mc = 20000
 
-    bs = BlackScholesParameters(r=R, sig=sigma)
+    bs = BlackScholesParameters(r=rfr, sig=sigma)
     bs_model_mc = BlackScholesModelMC(bs)
-    euler_paths = bs_model_mc.mc_euler(s0, size=n_mc, maturity=T)
-    exact_paths = bs_model_mc.mc_exact(s0, size=n_mc, maturity=T)
+    euler_paths = bs_model_mc.mc_euler(s0, size=n_mc, maturity=tmt)
+    exact_paths = bs_model_mc.mc_exact(s0, size=n_mc, maturity=tmt)
 
-    call_price_mc = npv(payoff.call, euler_paths, r=R, k_strike=K, T=T)
-    call_price_mc_exact = npv(payoff.call, exact_paths, r=R, k_strike=K, T=T)
-    call_price_det = BlackScholesModelDeterministic(bs).call(s0, T, K)
+    call_price_mc = npv(payoff.call, euler_paths, r=rfr, k_strike=strike_k, T=tmt)
+    call_price_mc_exact = npv(payoff.call, exact_paths, r=rfr, k_strike=strike_k, T=tmt)
+    call_price_det = BlackScholesModelDeterministic(bs).call(s0, tmt, strike_k)
 
     logger.info(f"{call_price_mc=}")
     logger.info(f"{call_price_mc_exact=}")
     logger.info(f"{call_price_det=}")
     logger.info("------------------")
 
-    put_price_mc = npv(payoff.put, euler_paths, r=R, k_strike=K, T=T)
-    put_price_mc_exact = npv(payoff.put, exact_paths, r=R, k_strike=K, T=T)
-    put_price_det = BlackScholesModelDeterministic(bs).put(s0, T, K)
+    put_price_mc = npv(payoff.put, euler_paths, r=rfr, k_strike=strike_k, T=tmt)
+    put_price_mc_exact = npv(payoff.put, exact_paths, r=rfr, k_strike=strike_k, T=tmt)
+    put_price_det = BlackScholesModelDeterministic(bs).put(s0, tmt, strike_k)
 
     logger.info(f"{put_price_mc=}")
     logger.info(f"{put_price_mc_exact=}")
     logger.info(f"{put_price_det=}")
 
     logger.info("-----------------")
-    asian_call_price_mc = npv(payoff.asian_call, euler_paths, r=R, k_strike=K, T=T)
+    asian_call_price_mc = npv(
+        payoff.asian_call,
+        euler_paths,
+        r=rfr,
+        k_strike=strike_k,
+        T=tmt,
+    )
     logger.info(f"{asian_call_price_mc=}")
     logger.info("-----------------")
     barrier_uo_call_price_mc = npv(
-        payoff.up_n_out_call, euler_paths, r=R, k_strike=K, barrier=B, T=T
+        payoff.up_n_out_call,
+        euler_paths,
+        r=rfr,
+        k_strike=strike_k,
+        barrier=barrier,
+        T=tmt,
     )
     logger.info(f"{barrier_uo_call_price_mc=}")
 
     logger.info("-----------------")
     barrier_do_call_price_mc = npv(
-        payoff.down_n_out_call, euler_paths, r=R, k_strike=K, barrier=5, T=T
+        payoff.down_n_out_call,
+        euler_paths,
+        r=rfr,
+        k_strike=strike_k,
+        barrier=5,
+        T=tmt,
     )
     logger.info(f"{barrier_do_call_price_mc=}")
 
     logger.info("-----------------")
-    digital_option_price = npv(payoff.digital_option, euler_paths, r=R, k_strike=K, T=T)
+    digital_option_price = npv(
+        payoff.digital_option,
+        euler_paths,
+        r=rfr,
+        k_strike=strike_k,
+        T=tmt,
+    )
     logger.info(f"{digital_option_price=}")
 
 

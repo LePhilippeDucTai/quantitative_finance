@@ -1,11 +1,9 @@
 """Black-Scholes model for pricing options."""
 
-from typing import Any
-
 import numpy as np
 from qlib import payoff
-from qlib.brownian import Path, brownian_trajectories
 from qlib.constant_parameters import DEFAULT_RNG, N_DYADIC, N_MC
+from qlib.models.brownian import Path, brownian_trajectories
 from qlib.traits import EulerSchema, EulerSchemaJit
 from qlib.utils.logger import logger
 from qlib.utils.timing import time_it
@@ -91,11 +89,6 @@ def bs_exact_mc(
     λ = r - 0.5 * sigma**2
     xk = s0 * np.exp(λ * tk + sigma * brownian.x)
     return Path(tk, xk)
-
-
-def npv(payoff: callable, paths: Path, *args: tuple, **kwargs: dict[str, Any]):
-    """Monte-Carlo expectation."""
-    return np.mean(payoff(paths, *args, **kwargs))
 
 
 class EuropeanOption:

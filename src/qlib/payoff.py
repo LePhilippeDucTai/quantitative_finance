@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from qlib.brownian import Path
+from qlib.models.brownian import Path
 
 
 def call(s: np.ndarray, r: float, k_strike: float, tmt: float):

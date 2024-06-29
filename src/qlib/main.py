@@ -1,6 +1,6 @@
 """Main module."""
 
-from qlib.brownian import brownian_trajectories, plot_brownians
+from qlib.models.brownian import brownian_trajectories, plot_brownians
 
 
 def main() -> None:

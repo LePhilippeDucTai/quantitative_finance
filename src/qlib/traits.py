@@ -3,8 +3,8 @@ from typing import Any, Callable
 import numba
 import numpy as np
 
-from qlib.brownian import Path, TimeGrid
 from qlib.constant_parameters import DEFAULT_RNG, N_DYADIC
+from qlib.models.brownian import Path, TimeGrid
 from qlib.numerical.euler_scheme import euler_discretization
 from qlib.optimized_numba import euler_discretization_jit
 from qlib.utils.misc import to_tuple

@@ -44,13 +44,13 @@ def time_it(func: Callable[P, T]) -> Callable[P, T]:
     @ft.wraps(func)
     def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
         function_name = ".".join([func.__module__, func.__qualname__])
-        logger.info(f"### Processing in {function_name} ...", end="\n")
+        logger.debug(f"### Processing in {function_name} ...", end="\n")
         t1 = time.perf_counter()
         rss_before = get_process_memory()
         result = func(*args, **kwargs)
         elapsed_time = elapsed_since(t1)
         rss_after = get_process_memory()
-        logger.success(
+        logger.debug(
             "\t--> Function ended : {:>8}  RSS: {:>8} | time: {:>8}".format(
                 "<" + function_name + ">",
                 format_bytes(rss_after - rss_before),

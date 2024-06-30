@@ -3,7 +3,7 @@
 from qlib.traits import ItoProcess
 
 
-class Greeks:
+class Sensitivities:
     def __init__(self, model: ItoProcess, payoff_func: callable):
         self.model = model
         self.payoff_func = payoff_func

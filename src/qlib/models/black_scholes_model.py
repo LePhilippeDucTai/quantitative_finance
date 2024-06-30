@@ -1,84 +1,21 @@
 """Black-Scholes model for pricing options."""
 
-from enum import Enum, auto
+from dataclasses import dataclass
 
 import numpy as np
 from qlib.constant_parameters import DEFAULT_RNG, N_DYADIC, N_MC
-from qlib.financial import payoffs
+from qlib.financial.payoffs import (
+    AsianCallOption,
+    EuropeanCallOption,
+    EuropeanOptionParameters,
+    EuropeanPutOption,
+)
 from qlib.models.brownian import Path, brownian_trajectories
-from qlib.traits import Model
+from qlib.numerical.euler_scheme import ComputationKind
+from qlib.traits import FlatForward, ItoProcessParameters, Model, TermStructure
 from qlib.utils.logger import logger
 from qlib.utils.timing import time_it
 from scipy.special import ndtr
-
-
-class ComputationKind(Enum):
-    DET = auto()
-    EULER = auto()
-    EULER_JIT = auto()
-    EXACT = auto()
-    MILTSTEIN = auto()
-    TERMINAL = auto()
-
-
-def bs_mu(t, x, r, sigma, *args):
-    return r * x
-
-
-def bs_sigma(t, x, r, sigma, *args):
-    return sigma * x
-
-
-class BlackScholesModel(Model):
-    """Black-Scholes model pricing by Monte-Carlo."""
-
-    def __init__(
-        self, x0: float, time_horizon: float, risk_free_rate: float, sigma: float
-    ):
-        """Risk_free_rate: will become TermStructure in the future."""
-        super().__init__(x0, time_horizon)
-        self.r = risk_free_rate
-        self.sig = sigma
-        self.model_args = (risk_free_rate, sigma)
-
-    def mu(self):
-        return bs_mu
-
-    def sigma(self):
-        return bs_sigma
-
-    @time_it
-    def mc_exact(
-        self,
-        size: int = N_MC,
-        n_dyadic: int = N_DYADIC,
-    ):
-        x0 = self.x0
-        r = self.r
-        σ = self.sig
-        return bs_exact_mc(x0, r, σ, self.time_horizon, size, n_dyadic)
-
-    def mc_terminal(self, size: int = N_MC):
-        maturity = self.time_horizon
-        mu = (self.r - self.sig**2 / 2) * maturity
-        s = self.sig * np.sqrt(maturity)
-        exponential = DEFAULT_RNG.lognormal(mean=mu, sigma=s, size=(size, 1))
-        time = np.array([maturity])
-        return Path(time, self.x0 * exponential)
-
-    def call(self, k: float) -> float:
-        """Calculate the price of a call option."""
-        s, t = self.x0, self.time_horizon
-        r = self.r
-        sigma = self.sig
-        d1 = (1 / (sigma * (t**0.5))) * (np.log(s / k) + (r + 0.5 * sigma**2) * t)
-        d2 = d1 - sigma * (t**0.5)
-        return s * ndtr(d1) - k * np.exp(-r * t) * ndtr(d2)
-
-    def put(self, k: float) -> float:
-        """Calculate the price of a put option using call-put parity."""
-        s, t = self.x0, self.time_horizon
-        return self.call(k) - s + k * np.exp(-self.r * t)
 
 
 def bs_exact_mc(
@@ -97,129 +34,105 @@ def bs_exact_mc(
     return Path(tk, xk)
 
 
-def method_selector(model: BlackScholesModel, method: ComputationKind) -> callable:
-    mapping = {
-        ComputationKind.EULER: model.mc_euler,
-        ComputationKind.EULER_JIT: model.mc_euler_jit,
-        ComputationKind.EXACT: model.mc_exact,
-        ComputationKind.TERMINAL: model.mc_terminal,
-    }
-    return mapping[method]
+@dataclass
+class BlackScholesParameters(ItoProcessParameters):
+    x0: float
+    sigma: float
 
 
-class EuropeanOption:
-    def __init__(self, model: BlackScholesModel, strike_k: float, maturity: float):
-        self.strike_k = strike_k
-        self.maturity = maturity
-        self.model = model
+class BlackScholesModel(Model):
+    """Black-Scholes model pricing by Monte-Carlo."""
 
-    def call_npv(self, method: ComputationKind, n_mc: int = N_MC):
-        if method == ComputationKind.DET:
-            return self.model.call(self.strike_k)
-        simulation_function = method_selector(self.model, method)
-        sample_paths: Path = simulation_function(size=n_mc)
-        r = self.model.r
-        h = payoffs.call(sample_paths.x[..., -1], r, self.strike_k, self.maturity)
-        return np.mean(h)
+    def __init__(
+        self, model_parameters: BlackScholesParameters, term_structure: TermStructure
+    ):
+        super().__init__(model_parameters, term_structure)
+        self.model_parameters = model_parameters
 
-    def put_npv(self, method: ComputationKind, n_mc: int = N_MC):
-        c0 = self.call_npv(method, n_mc)
-        r, t = self.model.r, self.maturity
-        return c0 - self.model.x0 + self.strike_k * np.exp(-r * t)
+    def mu(self, t, x: float):
+        return x * self.r
+
+    def sigma(self, _, x: float):
+        return x * self.sig
+
+    @property
+    def r(self):
+        return self.term_structure.rates_model.instantaneous()
+
+    @property
+    def x0(self):
+        return self.model_parameters.x0
+
+    @property
+    def sig(self):
+        return self.model_parameters.sigma
+
+    @time_it
+    def mc_exact(
+        self,
+        time_to_maturity: float,
+        size: int = N_MC,
+        n_dyadic: int = N_DYADIC,
+    ):
+        return bs_exact_mc(self.x0, self.r, self.sig, time_to_maturity, size, n_dyadic)
+
+    def mc_terminal(self, time_to_maturity: float, size: int = N_MC):
+        maturity = time_to_maturity
+        r, σ = self.r, self.sig
+        mu = (r - σ**2 / 2) * maturity
+        s = self.sig * np.sqrt(maturity)
+        exponential = DEFAULT_RNG.lognormal(mean=mu, sigma=s, size=(size, 1))
+        time = np.array([maturity])
+        return Path(time, self.x0 * exponential)
+
+    def call(self, time_horizon: float, k: float) -> float:
+        """Calculate the price of a call option."""
+        s, t = self.x0, time_horizon
+        r = self.r
+        sigma = self.sig
+        d1 = (1 / (sigma * (t**0.5))) * (np.log(s / k) + (r + 0.5 * sigma**2) * t)
+        d2 = d1 - sigma * (t**0.5)
+        return s * ndtr(d1) - k * np.exp(-r * t) * ndtr(d2)
+
+    def put(self, time_horizon: int, k: float) -> float:
+        """Calculate the price of a put option using call-put parity."""
+        s, t = self.x0, time_horizon
+        return self.call(k) - s + k * np.exp(-self.r * t)
 
 
-class BarrierOption:
-    def __init__(self, strike_k: float, maturity: float, barrier: float):
-        self.strike_k = strike_k
-        self.maturity = maturity
-        self.barrier = barrier
+def main():
+    r = 0.05
+    sig = 0.25
+    x0 = 100
+    maturity = 30 / 365
+    strike_k = x0
+    flat_curve = FlatForward(r)
+    term_structure = TermStructure(flat_curve)
+    bs_params = BlackScholesParameters(x0, sig)
+    bs = BlackScholesModel(bs_params, term_structure)
+    european_option_parameters = EuropeanOptionParameters(maturity, strike_k)
 
-
-class AsianOption:
-    def __init__(self, strike_k: float, maturity: float):
-        self.strik_k = strike_k
-        self.maturity = maturity
-
-
-def main() -> None:
-    """Compute and test."""
-    s0 = 100
-    strike_k = s0
-    rfr = 0.1
-    tmt = 2
-    # barrier = 20
-    sigma = 0.5
-
-    bs_model_mc = BlackScholesModel(s0, tmt, rfr, sigma)
-    european = EuropeanOption(bs_model_mc, strike_k, tmt)
-    call_price_det = european.call_npv(ComputationKind.DET)
-    call_price_euler = european.call_npv(ComputationKind.EULER)
-    call_price_euler_jit = european.call_npv(ComputationKind.EULER_JIT)
-    call_price_terminal = european.call_npv(ComputationKind.TERMINAL)
-
-    logger.info(f"{call_price_det=}")
-    logger.info(f"{call_price_terminal=}")
+    option = EuropeanCallOption(bs, european_option_parameters)
+    call_price_euler = option.npv(ComputationKind.EULER)
+    call_price_exact = option.npv(ComputationKind.EXACT)
+    call_price_terminal = option.npv(ComputationKind.TERMINAL)
     logger.info(f"{call_price_euler=}")
-    logger.info(f"{call_price_euler_jit=}")
-    # call_price_mc = npv(payoff.call, euler_paths, r=rfr, k_strike=strike_k, tmt=tmt)
-    # call_price_mc_exact = npv(
-    #     payoff.call, exact_paths, r=rfr, k_strike=strike_k, tmt=tmt
-    # )
-    # call_price_det = bs_model_det.call(s0, tmt, strike_k)
+    logger.info(f"{call_price_exact=}")
+    logger.info(f"{call_price_terminal=}")
 
-    # logger.info(f"{call_price_mc=}")
-    # logger.info(f"{call_price_mc_exact=}")
-    # logger.info(f"{call_price_det=}")
-    # logger.info("------------------")
+    option = EuropeanPutOption(bs, european_option_parameters)
+    put_price_euler = option.npv(ComputationKind.EULER)
+    put_price_exact = option.npv(ComputationKind.EXACT)
+    put_price_terminal = option.npv(ComputationKind.TERMINAL)
+    logger.info(f"{put_price_euler=}")
+    logger.info(f"{put_price_exact=}")
+    logger.info(f"{put_price_terminal=}")
 
-    # put_price_mc = npv(payoff.put, euler_paths, r=rfr, k_strike=strike_k, tmt=tmt)
-    # put_price_mc_exact = npv(payoff.put, exact_paths, r=rfr, k_strike=strike_k, tmt=tmt)  # noqa: E501
-    # put_price_det = bs_model_det.put(s0, tmt, strike_k)
-
-    # logger.info(f"{put_price_mc=}")
-    # logger.info(f"{put_price_mc_exact=}")
-    # logger.info(f"{put_price_det=}")
-
-    # logger.info("-----------------")
-    # asian_call_price_mc = npv(
-    #     payoff.asian_call,
-    #     euler_paths,
-    #     r=rfr,
-    #     k_strike=strike_k,
-    #     tmt=tmt,
-    # )
-    # logger.info(f"{asian_call_price_mc=}")
-    # logger.info("-----------------")
-    # barrier_uo_call_price_mc = npv(
-    #     payoff.up_n_out_call,
-    #     euler_paths,
-    #     r=rfr,
-    #     k_strike=strike_k,
-    #     barrier=barrier,
-    #     tmt=tmt,
-    # )
-    # logger.info(f"{barrier_uo_call_price_mc=}")
-
-    # logger.info("-----------------")
-    # barrier_do_call_price_mc = npv(
-    #     payoff.down_n_out_call,
-    #     euler_paths,
-    #     r=rfr,
-    #     k_strike=strike_k,
-    #     barrier=5,
-    #     tmt=tmt,
-    # )
-    # logger.info(f"{barrier_do_call_price_mc=}")
-
-    # logger.info("-----------------")
-    # digital_option_price = npv(
-    #     payoff.digital_option,
-    #     euler_paths,
-    #     r=rfr,
-    #     k_strike=strike_k,
-    #     tmt=tmt,
-    # )
-    # logger.info(f"{digital_option_price=}")
+    option = AsianCallOption(bs, european_option_parameters)
+    call_price_euler = option.npv(ComputationKind.EULER)
+    call_price_exact = option.npv(ComputationKind.EXACT)
+    logger.info(f"{call_price_euler=}")
+    logger.info(f"{call_price_exact=}")
 
 
 if __name__ == "__main__":

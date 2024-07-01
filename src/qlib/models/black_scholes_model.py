@@ -5,10 +5,8 @@ from dataclasses import dataclass
 import numpy as np
 from qlib.constant_parameters import DEFAULT_RNG, N_DYADIC, N_MC
 from qlib.financial.payoffs import (
-    AsianCallOption,
     EuropeanCallOption,
     EuropeanOptionParameters,
-    EuropeanPutOption,
 )
 from qlib.models.brownian import Path, brownian_trajectories
 from qlib.numerical.euler_scheme import ComputationKind
@@ -25,9 +23,10 @@ def bs_exact_mc(
     t: float,
     size: int | tuple[int],
     n_dyadic: int,
+    generator: np.random.Generator,
 ) -> Path:
     """Exact simulation of the underlying in the BS model."""
-    brownian = brownian_trajectories(t, size=size, n=n_dyadic)
+    brownian = brownian_trajectories(t, size=size, n=n_dyadic, gen=generator)
     tk = brownian.t
     λ = r - 0.5 * sigma**2
     xk = s0 * np.exp(λ * tk + sigma * brownian.x)
@@ -73,15 +72,23 @@ class BlackScholesModel(Model):
         time_to_maturity: float,
         size: int = N_MC,
         n_dyadic: int = N_DYADIC,
+        generator: np.random.Generator = DEFAULT_RNG,
     ):
-        return bs_exact_mc(self.x0, self.r, self.sig, time_to_maturity, size, n_dyadic)
+        return bs_exact_mc(
+            self.x0, self.r, self.sig, time_to_maturity, size, n_dyadic, generator
+        )
 
-    def mc_terminal(self, time_to_maturity: float, size: int = N_MC):
+    def mc_terminal(
+        self,
+        time_to_maturity: float,
+        size: int = N_MC,
+        generator: np.random.Generator = DEFAULT_RNG,
+    ):
         maturity = time_to_maturity
         r, σ = self.r, self.sig
         mu = (r - σ**2 / 2) * maturity
         s = self.sig * np.sqrt(maturity)
-        exponential = DEFAULT_RNG.lognormal(mean=mu, sigma=s, size=(size, 1))
+        exponential = generator.lognormal(mean=mu, sigma=s, size=(size, 1))
         time = np.array([maturity])
         return Path(time, self.x0 * exponential)
 
@@ -102,10 +109,10 @@ class BlackScholesModel(Model):
 
 def main():
     r = 0.05
-    sig = 0.25
-    x0 = 100
-    maturity = 30 / 365
-    strike_k = x0
+    sig = 0.20
+    x0 = 300
+    maturity = 0.5
+    strike_k = 280
     flat_curve = FlatForward(r)
     term_structure = TermStructure(flat_curve)
     bs_params = BlackScholesParameters(x0, sig)
@@ -113,26 +120,28 @@ def main():
     european_option_parameters = EuropeanOptionParameters(maturity, strike_k)
 
     option = EuropeanCallOption(bs, european_option_parameters)
-    call_price_euler = option.npv(ComputationKind.EULER)
-    call_price_exact = option.npv(ComputationKind.EXACT)
-    call_price_terminal = option.npv(ComputationKind.TERMINAL)
+    call_price_euler = option.npv(kind=ComputationKind.EULER)
+    call_price_exact = option.npv(kind=ComputationKind.EXACT)
+    call_price_terminal = option.npv(kind=ComputationKind.TERMINAL)
     logger.info(f"{call_price_euler=}")
     logger.info(f"{call_price_exact=}")
     logger.info(f"{call_price_terminal=}")
 
-    option = EuropeanPutOption(bs, european_option_parameters)
-    put_price_euler = option.npv(ComputationKind.EULER)
-    put_price_exact = option.npv(ComputationKind.EXACT)
-    put_price_terminal = option.npv(ComputationKind.TERMINAL)
-    logger.info(f"{put_price_euler=}")
-    logger.info(f"{put_price_exact=}")
-    logger.info(f"{put_price_terminal=}")
+    call_pricing = option.pricing(seed_seq=np.random.SeedSequence(13441))
+    logger.info(f"{call_pricing=}")
+    # option = EuropeanPutOption(bs, european_option_parameters)
+    # put_price_euler = option.npv(ComputationKind.EULER)
+    # put_price_exact = option.npv(ComputationKind.EXACT)
+    # put_price_terminal = option.npv(ComputationKind.TERMINAL)
+    # logger.info(f"{put_price_euler=}")
+    # logger.info(f"{put_price_exact=}")
+    # logger.info(f"{put_price_terminal=}")
 
-    option = AsianCallOption(bs, european_option_parameters)
-    call_price_euler = option.npv(ComputationKind.EULER)
-    call_price_exact = option.npv(ComputationKind.EXACT)
-    logger.info(f"{call_price_euler=}")
-    logger.info(f"{call_price_exact=}")
+    # option = AsianCallOption(bs, european_option_parameters)
+    # call_price_euler = option.npv(ComputationKind.EULER)
+    # call_price_exact = option.npv(ComputationKind.EXACT)
+    # logger.info(f"{call_price_euler=}")
+    # logger.info(f"{call_price_exact=}")
 
 
 if __name__ == "__main__":

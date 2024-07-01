@@ -7,3 +7,5 @@ N_DYADIC = 10
 N_MC = 20000
 
 DEFAULT_RNG = np.random.default_rng()
+DEFAULT_SEED_SEQ = np.random.SeedSequence(0)
+DELTA_EPSILON = 1e-8

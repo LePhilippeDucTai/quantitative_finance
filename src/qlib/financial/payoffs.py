@@ -1,8 +1,10 @@
 """Definition of all kinds of payoffs."""
 
+import copy
 from dataclasses import dataclass
 
 import numpy as np
+from qlib.constant_parameters import DEFAULT_SEED_SEQ, DELTA_EPSILON
 from qlib.models.brownian import Path
 from qlib.numerical.euler_scheme import ComputationKind
 from qlib.traits import Model
@@ -13,13 +15,87 @@ class DerivativeParameters:
     maturity: float
 
 
+@dataclass
+class PricingData:
+    price: float
+    price_std: float
+    delta: float
+    gamma: float
+    vega: float
+
+
 class Derivative:
     def __init__(self, model: Model, parameters: DerivativeParameters):
         self.model = model
         self.parameters = parameters
 
-    def npv(self, kind: ComputationKind):
-        pass
+    def generate_paths(
+        self, kind: ComputationKind, generator: np.random.Generator
+    ) -> Path:
+        maturity = self.parameters.maturity
+        match kind:
+            case ComputationKind.EULER:
+                return self.model.mc_euler(maturity, generator=generator)
+            case ComputationKind.TERMINAL:
+                return self.model.mc_terminal(maturity, generator=generator)
+            case ComputationKind.EXACT:
+                return self.model.mc_exact(
+                    time_to_maturity=maturity, generator=generator
+                )
+
+    def npv(
+        self,
+        seed_seq: np.random.SeedSequence = DEFAULT_SEED_SEQ,
+        kind: ComputationKind = ComputationKind.EULER,
+    ):
+        generator = np.random.default_rng(seed_seq)
+        maturity = self.parameters.maturity
+        df = self.model.term_structure.discount_factor(maturity)
+        sample_paths = self.generate_paths(kind, generator)
+        h = df * self.payoff(sample_paths)
+        price = np.mean(h)
+        std = np.std(h)
+        return price, std
+
+    def pricing(self, seed_seq: np.random.SeedSequence):
+        price, std = self.npv(seed_seq)
+        greeks = Sensitivities(self)
+        delta, gamma = greeks.delta_gamma(seed_seq, ref=price)
+        vega = greeks.vega(seed_seq, ref=price)
+        return PricingData(price, std, delta, gamma, vega)
+
+
+class Sensitivities:
+    def __init__(self, derivative: Derivative):
+        self.derivative = derivative
+
+    def variate_model_parameters(
+        self, model_parameter_name: str, eps: float
+    ) -> Derivative:
+        ds = copy.deepcopy(self.derivative)
+        initial = ds.model.model_parameters.__getattribute__(model_parameter_name)
+        next = initial + eps
+        ds.model.model_parameters.__setattr__(model_parameter_name, next)
+        return ds
+
+    def delta_gamma(
+        self, seed_seq: np.random.SeedSequence, ref=None, eps=DELTA_EPSILON
+    ):
+        d1 = self.variate_model_parameters("x0", eps)
+        d2 = self.variate_model_parameters("x0", -eps)
+        if ref is None:
+            ref, _ = self.derivative.npv(seed_seq)
+        (left, _), (right, _) = d1.npv(seed_seq), d2.npv(seed_seq)
+        gamma = (left - 2 * ref + right) / eps**2
+        delta = (left - right) / (2 * eps)
+        return delta, gamma
+
+    def vega(self, seed_seq: np.random.SeedSequence, ref=None, eps=DELTA_EPSILON):
+        d = self.variate_model_parameters("sigma", eps)
+        if ref is None:
+            ref, _ = self.derivative.npv(seed_seq)
+        value, _ = d.npv(seed_seq)
+        return (value - ref) / eps
 
 
 @dataclass
@@ -28,33 +104,7 @@ class EuropeanOptionParameters(DerivativeParameters):
     maturity: float
 
 
-class EuropeanOption(Derivative):
-    def __init__(self, model: Model, parameters: EuropeanOptionParameters):
-        super().__init__(model, parameters)
-        self.parameters = parameters
-
-    def generate_paths(self, kind: ComputationKind) -> Path:
-        maturity = self.parameters.maturity
-        match kind:
-            case ComputationKind.EULER:
-                return self.model.mc_euler(maturity)
-            case ComputationKind.TERMINAL:
-                return self.model.mc_terminal(maturity)
-            case ComputationKind.EXACT:
-                return self.model.mc_exact(maturity)
-
-    def payoff(self, sample_paths: Path) -> np.ndarray:
-        return 0
-
-    def npv(self, kind: ComputationKind):
-        maturity = self.parameters.maturity
-        df = self.model.term_structure.discount_factor(maturity)
-        sample_paths = self.generate_paths(kind)
-        h = df * self.payoff(sample_paths)
-        return np.mean(h)
-
-
-class EuropeanCallOption(EuropeanOption):
+class EuropeanCallOption(Derivative):
     def __init__(self, model: Model, parameters: EuropeanOptionParameters):
         super().__init__(model, parameters)
 
@@ -64,7 +114,7 @@ class EuropeanCallOption(EuropeanOption):
         return (s - k).clip(0)
 
 
-class EuropeanPutOption(EuropeanOption):
+class EuropeanPutOption(Derivative):
     def __init__(self, model, parameters):
         super().__init__(model, parameters)
 
@@ -74,7 +124,7 @@ class EuropeanPutOption(EuropeanOption):
         return (k - s).clip(0)
 
 
-class AsianCallOption(EuropeanOption):
+class AsianCallOption(Derivative):
     def __init__(self, model, parameters):
         super().__init__(model, parameters)
 

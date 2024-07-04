@@ -8,4 +8,6 @@ N_MC = 20000
 
 DEFAULT_RNG = np.random.default_rng()
 DEFAULT_SEED_SEQ = np.random.SeedSequence(0)
-DELTA_EPSILON = 1e-8
+DELTA_EPSILON = 0.01
+EPSILON = np.finfo(float).eps
+ETA = EPSILON ** (1 / 3)

@@ -4,9 +4,13 @@ import copy
 from dataclasses import dataclass
 
 import numpy as np
-from qlib.constant_parameters import DEFAULT_SEED_SEQ, DELTA_EPSILON
+from qlib.constant_parameters import DEFAULT_SEED_SEQ, DELTA_EPSILON, ETA
 from qlib.models.brownian import Path
-from qlib.numerical.euler_scheme import ComputationKind
+from qlib.numerical.euler_scheme import (
+    ComputationKind,
+    first_order_derivative,
+    second_order_derivative,
+)
 from qlib.traits import Model
 
 
@@ -30,9 +34,10 @@ class Derivative:
         self.parameters = parameters
 
     def generate_paths(
-        self, kind: ComputationKind, generator: np.random.Generator
+        self, kind: ComputationKind, seed_seq: np.random.SeedSequence
     ) -> Path:
         maturity = self.parameters.maturity
+        generator = np.random.default_rng(seed_seq)
         match kind:
             case ComputationKind.EULER:
                 return self.model.mc_euler(maturity, generator=generator)
@@ -43,22 +48,28 @@ class Derivative:
                     time_to_maturity=maturity, generator=generator
                 )
 
+    def payoff(self, sample_paths):
+        pass
+
     def npv(
         self,
         seed_seq: np.random.SeedSequence = DEFAULT_SEED_SEQ,
         kind: ComputationKind = ComputationKind.EULER,
-    ):
-        generator = np.random.default_rng(seed_seq)
+        std: bool = False,
+    ) -> float | tuple[float]:
+
         maturity = self.parameters.maturity
         df = self.model.term_structure.discount_factor(maturity)
-        sample_paths = self.generate_paths(kind, generator)
+        sample_paths = self.generate_paths(kind, seed_seq)
         h = df * self.payoff(sample_paths)
         price = np.mean(h)
-        std = np.std(h)
-        return price, std
+        if std:
+            std = np.std(h)
+            return price, std
+        return price
 
     def pricing(self, seed_seq: np.random.SeedSequence):
-        price, std = self.npv(seed_seq)
+        price, std = self.npv(seed_seq, std=True)
         greeks = Sensitivities(self)
         delta, gamma = greeks.delta_gamma(seed_seq, ref=price)
         vega = greeks.vega(seed_seq, ref=price)
@@ -70,32 +81,40 @@ class Sensitivities:
         self.derivative = derivative
 
     def variate_model_parameters(
-        self, model_parameter_name: str, eps: float
+        self, model_parameter_name: str, h: float
     ) -> Derivative:
         ds = copy.deepcopy(self.derivative)
         initial = ds.model.model_parameters.__getattribute__(model_parameter_name)
-        next = initial + eps
+        next = initial + h
         ds.model.model_parameters.__setattr__(model_parameter_name, next)
         return ds
+
+    def _h(self, model_parameter_name: str):
+        initial = self.derivative.model.model_parameters.__getattribute__(
+            model_parameter_name
+        )
+        return ETA * (1 + np.abs(initial))
 
     def delta_gamma(
         self, seed_seq: np.random.SeedSequence, ref=None, eps=DELTA_EPSILON
     ):
-        d1 = self.variate_model_parameters("x0", eps)
-        d2 = self.variate_model_parameters("x0", -eps)
+        h = self._h("x0")
+        f2 = self.variate_model_parameters("x0", 2 * h).npv(seed_seq)
+        f1 = self.variate_model_parameters("x0", h).npv(seed_seq)
+        fm1 = self.variate_model_parameters("x0", -h).npv(seed_seq)
+        fm2 = self.variate_model_parameters("x0", -2 * h).npv(seed_seq)
         if ref is None:
-            ref, _ = self.derivative.npv(seed_seq)
-        (left, _), (right, _) = d1.npv(seed_seq), d2.npv(seed_seq)
-        gamma = (left - 2 * ref + right) / eps**2
-        delta = (left - right) / (2 * eps)
+            ref = self.derivative.npv(seed_seq)
+        delta = first_order_derivative(h, f1, fm1)
+        gamma = second_order_derivative(h, f2, f1, ref, fm1, fm2)
         return delta, gamma
 
     def vega(self, seed_seq: np.random.SeedSequence, ref=None, eps=DELTA_EPSILON):
-        d = self.variate_model_parameters("sigma", eps)
-        if ref is None:
-            ref, _ = self.derivative.npv(seed_seq)
-        value, _ = d.npv(seed_seq)
-        return (value - ref) / eps
+        h = self._h("x0")
+        print(h)
+        f1 = self.variate_model_parameters("sigma", h).npv(seed_seq)
+        fm1 = self.variate_model_parameters("sigma", -h).npv(seed_seq)
+        return first_order_derivative(h, f1, fm1)
 
 
 @dataclass

@@ -3,10 +3,12 @@
 from dataclasses import dataclass
 
 import numpy as np
+import scipy.stats as ss
 from qlib.constant_parameters import DEFAULT_RNG, N_DYADIC, N_MC
 from qlib.financial.payoffs import (
     EuropeanCallOption,
     EuropeanOptionParameters,
+    PricingData,
 )
 from qlib.models.brownian import Path, brownian_trajectories
 from qlib.numerical.euler_scheme import ComputationKind
@@ -106,13 +108,42 @@ class BlackScholesModel(Model):
         s, t = self.x0, time_horizon
         return self.call(k) - s + k * np.exp(-self.r * t)
 
+    def delta(self, time_horizon: float, k: float) -> float:
+        _d1 = d1(self.x0, k, self.r, self.sig, time_horizon)
+        return ndtr(_d1)
+
+    def gamma(self, time_horizon: float, k: float) -> float:
+        _d1 = d1(self.x0, k, self.r, self.sig, time_horizon)
+        return ss.norm.pdf(_d1) / (self.sig * self.x0 * np.sqrt(time_horizon))
+
+    def vega(self, time_horizon, k: float) -> float:
+        _d1 = d1(self.x0, k, self.r, self.sig, time_horizon)
+        return self.x0 * np.sqrt(time_horizon) * ss.norm.pdf(_d1)
+
+    def call_det_pricing(self, time_horizon: float, k: float) -> PricingData:
+        price = self.call(time_horizon, k)
+        std = 0.0
+        delta = self.delta(time_horizon, k)
+        gamma = self.gamma(time_horizon, k)
+        vega = self.vega(time_horizon, k)
+        return PricingData(price, std, delta, gamma, vega)
+
+
+def d1(s: float, k: float, r: float, sigma: float, t: float) -> float:
+    return (1 / (sigma * (t**0.5))) * (np.log(s / k) + (r + 0.5 * sigma**2) * t)
+
+
+def d2(s: float, k: float, r: float, sigma: float, t: float) -> float:
+    _d1 = d1(s, k, r, sigma, t)
+    return _d1 - sigma * (t**0.5)
+
 
 def main():
     r = 0.05
     sig = 0.20
-    x0 = 300
-    maturity = 0.5
-    strike_k = 280
+    x0 = 100
+    maturity = 1
+    strike_k = 100
     flat_curve = FlatForward(r)
     term_structure = TermStructure(flat_curve)
     bs_params = BlackScholesParameters(x0, sig)
@@ -127,8 +158,11 @@ def main():
     logger.info(f"{call_price_exact=}")
     logger.info(f"{call_price_terminal=}")
 
-    call_pricing = option.pricing(seed_seq=np.random.SeedSequence(13441))
+    call_pricing = option.pricing(seed_seq=np.random.SeedSequence(4599412))
     logger.info(f"{call_pricing=}")
+
+    call_det_pricing = bs.call_det_pricing(maturity, strike_k)
+    logger.info(f"{call_det_pricing=}")
     # option = EuropeanPutOption(bs, european_option_parameters)
     # put_price_euler = option.npv(ComputationKind.EULER)
     # put_price_exact = option.npv(ComputationKind.EXACT)

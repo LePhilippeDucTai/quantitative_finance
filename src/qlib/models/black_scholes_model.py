@@ -5,15 +5,9 @@ from dataclasses import dataclass
 import numpy as np
 import scipy.stats as ss
 from qlib.constant_parameters import DEFAULT_RNG, N_DYADIC, N_MC
-from qlib.financial.payoffs import (
-    EuropeanCallOption,
-    EuropeanOptionParameters,
-    PricingData,
-)
+from qlib.financial.payoffs import PricingData
 from qlib.models.brownian import Path, brownian_trajectories
-from qlib.numerical.euler_scheme import ComputationKind
-from qlib.traits import FlatForward, ItoProcessParameters, Model, TermStructure
-from qlib.utils.logger import logger
+from qlib.traits import ItoProcessParameters, Model, TermStructure
 from qlib.utils.timing import time_it
 from scipy.special import ndtr
 
@@ -138,31 +132,8 @@ def d2(s: float, k: float, r: float, sigma: float, t: float) -> float:
     return _d1 - sigma * (t**0.5)
 
 
-def main():
-    r = 0.05
-    sig = 0.20
-    x0 = 100
-    maturity = 1
-    strike_k = 100
-    flat_curve = FlatForward(r)
-    term_structure = TermStructure(flat_curve)
-    bs_params = BlackScholesParameters(x0, sig)
-    bs = BlackScholesModel(bs_params, term_structure)
-    european_option_parameters = EuropeanOptionParameters(maturity, strike_k)
-
-    option = EuropeanCallOption(bs, european_option_parameters)
-    call_price_euler = option.npv(kind=ComputationKind.EULER)
-    call_price_exact = option.npv(kind=ComputationKind.EXACT)
-    call_price_terminal = option.npv(kind=ComputationKind.TERMINAL)
-    logger.info(f"{call_price_euler=}")
-    logger.info(f"{call_price_exact=}")
-    logger.info(f"{call_price_terminal=}")
-
-    call_pricing = option.pricing(seed_seq=np.random.SeedSequence(4599412))
-    logger.info(f"{call_pricing=}")
-
-    call_det_pricing = bs.call_det_pricing(maturity, strike_k)
-    logger.info(f"{call_det_pricing=}")
+def _test():
+    pass
     # option = EuropeanPutOption(bs, european_option_parameters)
     # put_price_euler = option.npv(ComputationKind.EULER)
     # put_price_exact = option.npv(ComputationKind.EXACT)
@@ -178,5 +149,5 @@ def main():
     # logger.info(f"{call_price_exact=}")
 
 
-if __name__ == "__main__":
-    main()
+# if __name__ == "__main__":
+#     main()

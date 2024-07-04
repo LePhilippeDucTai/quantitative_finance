@@ -50,6 +50,9 @@ class BlackScholesModel(Model):
     def sigma(self, _, x: float):
         return x * self.sig
 
+    def sigma_derivative(self, t, x):
+        return self.sig
+
     @property
     def r(self):
         return self.term_structure.rates_model.instantaneous()

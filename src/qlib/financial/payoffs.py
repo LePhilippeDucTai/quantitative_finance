@@ -47,6 +47,8 @@ class Derivative:
                 return self.model.mc_exact(
                     time_to_maturity=maturity, generator=generator
                 )
+            case ComputationKind.MILTSTEIN:
+                return self.model.mc_milstein(maturity, generator=generator)
 
     def payoff(self, sample_paths):
         pass

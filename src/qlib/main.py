@@ -9,6 +9,8 @@ from qlib.numerical.euler_scheme import ComputationKind
 from qlib.traits import FlatForward, TermStructure
 from qlib.utils.logger import logger
 
+logger.level("INFO")
+
 
 def main_0() -> None:
     """Test."""
@@ -32,9 +34,12 @@ def main():
     call_price_euler = option.npv(kind=ComputationKind.EULER)
     call_price_exact = option.npv(kind=ComputationKind.EXACT)
     call_price_terminal = option.npv(kind=ComputationKind.TERMINAL)
+
+    call_price_milstein = option.npv(kind=ComputationKind.MILTSTEIN)
     logger.info(f"{call_price_euler=}")
     logger.info(f"{call_price_exact=}")
     logger.info(f"{call_price_terminal=}")
+    logger.info(f"{call_price_milstein=}")
 
     call_pricing = option.pricing(seed_seq=np.random.SeedSequence(4599412))
     logger.info(f"{call_pricing=}")
@@ -44,5 +49,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main_0()
+    # main_0()
     main()

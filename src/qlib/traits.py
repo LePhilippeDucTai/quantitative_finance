@@ -7,6 +7,7 @@ from loguru import logger
 
 from qlib.constant_parameters import DEFAULT_RNG, N_DYADIC, N_MC
 from qlib.models.path import Path, TimeGrid
+from qlib.numerical.euler_scheme import euler_discretization, milstein_discretization
 from qlib.numerical.optimized_numba import euler_discretization_jit
 from qlib.utils.misc import to_tuple
 from qlib.utils.timing import time_it
@@ -51,23 +52,6 @@ class ItoProcess:
         xt = np.empty_like(g)
         xt[..., 0] = self.model_parameters.x0
         return dt, n_t, t, g, xt
-
-
-def euler_discretization(  # noqa: PLR0913
-    mu: callable,
-    sigma: callable,
-    t: np.ndarray,
-    xt: np.ndarray,
-    n_t: int,
-    g: np.ndarray,
-    dt: float,
-) -> np.ndarray:
-    for i in range(n_t - 1):
-        t_i, x_i = t[i], xt[..., i]
-        g_i = g[..., i]
-        μ, σ = mu(t_i, x_i), sigma(t_i, x_i)
-        xt[..., i + 1] = x_i + μ * dt + σ * g_i
-    return xt
 
 
 class EulerSchema(ItoProcess):
@@ -121,6 +105,38 @@ class EulerSchemaJit(ItoProcess):
         return Path(t, xt)
 
 
+class MisteinSchema(ItoProcess):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def mu(self, t, x):
+        logger.warning("Not implemented yet !")
+        return
+
+    def sigma(self, t, x):
+        logger.warning("Not implemented yet !")
+        return
+
+    def sigma_derivative(self, t, x):
+        logger.warning("Not implemented yet !")
+        return
+
+    def mc_milstein(
+        self,
+        time_horizon: int,
+        size: tuple[int] = N_MC,
+        n_dyadic: int = N_DYADIC,
+        generator: np.random.Generator = DEFAULT_RNG,
+    ):
+        dt, n_t, t, g, xt = self.initialize_discretization(
+            time_horizon, size, n_dyadic, generator
+        )
+        xt = milstein_discretization(
+            self.mu, self.sigma, self.sigma_derivative, t, xt, n_t, g, dt
+        )
+        return Path(t, xt)
+
+
 class InterestRatesModel:
 
     def instantaneous(self, size: int) -> np.ndarray | float:
@@ -153,7 +169,7 @@ class FlatForward(InterestRatesModel):
         return "flat"
 
 
-class Model(EulerSchema, EulerSchemaJit):
+class Model(EulerSchema, EulerSchemaJit, MisteinSchema):
     def __init__(
         self,
         model_parameters: ItoProcessParameters,

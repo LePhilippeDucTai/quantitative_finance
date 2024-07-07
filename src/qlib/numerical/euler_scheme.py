@@ -50,7 +50,7 @@ def milstein_discretization(
 
 
 def first_order_derivative(h, f1, fm1):
-    return (f1 - fm1) / (2 * h)
+    return 0.5 * (f1 - fm1) / h
 
 
 def second_order_derivative(h: float, f2: float, f1, f0, fm1, fm2):

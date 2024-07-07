@@ -20,10 +20,10 @@ def main_0() -> None:
 
 def main():
     r = 0.05
-    sig = 0.20
+    sig = 0.25
     x0 = 100
-    maturity = 1
-    strike_k = 100
+    maturity = 2
+    strike_k = 120
     flat_curve = FlatForward(r)
     term_structure = TermStructure(flat_curve)
     bs_params = BlackScholesParameters(x0, sig)
@@ -41,7 +41,7 @@ def main():
     logger.info(f"{call_price_terminal=}")
     logger.info(f"{call_price_milstein=}")
 
-    seed = np.random.SeedSequence(4599412)
+    seed = np.random.SeedSequence(312111)
     call_pricing = option.pricing(seed_seq=seed, kind=ComputationKind.TERMINAL)
     logger.info(f"{call_pricing=}")
 

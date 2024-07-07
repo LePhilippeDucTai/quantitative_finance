@@ -49,7 +49,7 @@ class ItoProcess:
         dt, n_t, t = time_grid.dt, time_grid.n_dates, time_grid.t
         size = to_tuple(size)
         g = generator.normal(scale=np.sqrt(dt), size=(*size, n_t))
-        xt = np.empty_like(g)
+        xt = np.empty_like(g, dtype=np.complex128)
         xt[..., 0] = self.model_parameters.x0
         return dt, n_t, t, g, xt
 

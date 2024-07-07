@@ -123,7 +123,9 @@ class BlackScholesModel(Model):
         delta = self.delta(time_horizon, k)
         gamma = self.gamma(time_horizon, k)
         vega = self.vega(time_horizon, k)
-        return PricingData(price, std, delta, gamma, vega)
+        return PricingData(
+            price=price, price_std=std, delta=delta, gamma=gamma, vega=vega
+        )
 
 
 def d1(s: float, k: float, r: float, sigma: float, t: float) -> float:

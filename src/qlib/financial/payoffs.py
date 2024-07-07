@@ -6,11 +6,7 @@ from dataclasses import dataclass
 import numpy as np
 from qlib.constant_parameters import DEFAULT_SEED_SEQ, DELTA_EPSILON, ETA
 from qlib.models.brownian import Path
-from qlib.numerical.euler_scheme import (
-    ComputationKind,
-    first_order_derivative,
-    second_order_derivative,
-)
+from qlib.numerical.euler_scheme import ComputationKind, first_order_derivative
 from qlib.traits import Model
 
 
@@ -24,8 +20,8 @@ class PricingData:
     price: float
     price_std: float
     delta: float
-    gamma: float
     vega: float
+    gamma: float = None
 
 
 class Derivative:
@@ -47,7 +43,7 @@ class Derivative:
                 return self.model.mc_exact(
                     time_to_maturity=maturity, generator=generator
                 )
-            case ComputationKind.MILTSTEIN:
+            case ComputationKind.MILSTEIN:
                 return self.model.mc_milstein(maturity, generator=generator)
 
     def payoff(self, sample_paths):
@@ -70,12 +66,19 @@ class Derivative:
             return price, std
         return price
 
-    def pricing(self, seed_seq: np.random.SeedSequence):
-        price, std = self.npv(seed_seq, std=True)
+    def pricing(self, seed_seq: np.random.SeedSequence, kind: ComputationKind):
+        price, std = self.npv(seed_seq, kind=kind, std=True)
         greeks = Sensitivities(self)
-        delta, gamma = greeks.delta_gamma(seed_seq, ref=price)
-        vega = greeks.vega(seed_seq, ref=price)
-        return PricingData(price, std, delta, gamma, vega)
+        delta = greeks.delta(seed_seq, kind=kind)
+        gamma = greeks.gamma(seed_seq, kind=kind)
+        vega = greeks.vega(seed_seq, kind=kind)
+        return PricingData(
+            price=price.real,
+            price_std=std,
+            delta=delta.real,
+            vega=vega.real,
+            gamma=gamma,
+        )
 
 
 class Sensitivities:
@@ -97,25 +100,25 @@ class Sensitivities:
         )
         return ETA * (1 + np.abs(initial))
 
-    def delta_gamma(
-        self, seed_seq: np.random.SeedSequence, ref=None, eps=DELTA_EPSILON
-    ):
+    def delta(self, seed_seq: np.random.SeedSequence, kind: ComputationKind, dx=0.0):
         h = self._h("x0")
-        f2 = self.variate_model_parameters("x0", 2 * h).npv(seed_seq)
-        f1 = self.variate_model_parameters("x0", h).npv(seed_seq)
-        fm1 = self.variate_model_parameters("x0", -h).npv(seed_seq)
-        fm2 = self.variate_model_parameters("x0", -2 * h).npv(seed_seq)
-        if ref is None:
-            ref = self.derivative.npv(seed_seq)
-        delta = first_order_derivative(h, f1, fm1)
-        gamma = second_order_derivative(h, f2, f1, ref, fm1, fm2)
-        return delta, gamma
+        fc = self.variate_model_parameters("x0", 1j * h + dx).npv(seed_seq, kind=kind)
+        return fc.imag / h
 
-    def vega(self, seed_seq: np.random.SeedSequence, ref=None, eps=DELTA_EPSILON):
+    def gamma(
+        self,
+        seed_seq: np.random.SeedSequence,
+        kind: ComputationKind,
+        eps=DELTA_EPSILON,
+    ):
+        d1 = self.delta(seed_seq, kind=kind, dx=eps)
+        dm1 = self.delta(seed_seq, kind=kind, dx=-eps)
+        return first_order_derivative(eps, d1, dm1)
+
+    def vega(self, seed_seq: np.random.SeedSequence, kind: ComputationKind):
         h = self._h("x0")
-        print(h)
-        f1 = self.variate_model_parameters("sigma", h).npv(seed_seq)
-        fm1 = self.variate_model_parameters("sigma", -h).npv(seed_seq)
+        f1 = self.variate_model_parameters("sigma", h).npv(seed_seq, kind=kind)
+        fm1 = self.variate_model_parameters("sigma", -h).npv(seed_seq, kind=kind)
         return first_order_derivative(h, f1, fm1)
 
 

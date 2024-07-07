@@ -8,7 +8,7 @@ class ComputationKind(Enum):
     EULER = auto()
     EULER_JIT = auto()
     EXACT = auto()
-    MILTSTEIN = auto()
+    MILSTEIN = auto()
     TERMINAL = auto()
 
 

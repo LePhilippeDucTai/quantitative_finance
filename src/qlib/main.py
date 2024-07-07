@@ -35,13 +35,14 @@ def main():
     call_price_exact = option.npv(kind=ComputationKind.EXACT)
     call_price_terminal = option.npv(kind=ComputationKind.TERMINAL)
 
-    call_price_milstein = option.npv(kind=ComputationKind.MILTSTEIN)
+    call_price_milstein = option.npv(kind=ComputationKind.MILSTEIN)
     logger.info(f"{call_price_euler=}")
     logger.info(f"{call_price_exact=}")
     logger.info(f"{call_price_terminal=}")
     logger.info(f"{call_price_milstein=}")
 
-    call_pricing = option.pricing(seed_seq=np.random.SeedSequence(4599412))
+    seed = np.random.SeedSequence(4599412)
+    call_pricing = option.pricing(seed_seq=seed, kind=ComputationKind.TERMINAL)
     logger.info(f"{call_pricing=}")
 
     call_det_pricing = bs.call_det_pricing(maturity, strike_k)

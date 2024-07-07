@@ -1,22 +1,33 @@
-from qlib.models.black_scholes_model import BlackScholesModel
+import pytest
+from qlib.models.black_scholes_model import BlackScholesModel, BlackScholesParameters
+from qlib.traits import FlatForward, TermStructure
 
 
-def bs_parameters_fixtures():
+@pytest.fixture
+def bs_model() -> BlackScholesModel:
     rfr = 0.05
     sigma = 0.25
     s0 = 100
+    model_params = BlackScholesParameters(s0, sigma)
+    term_structure = TermStructure(FlatForward(rfr))
+    return BlackScholesModel(model_params, term_structure)
+
+
+@pytest.fixture
+def options_fixtures():
     strike_k = 100
     tmt = 30 / 365
-    return rfr, sigma, s0, strike_k, tmt
+    return tmt, strike_k
 
 
-def test_deterministic_price():
-    rfr, sigma, s0, strike_k, tmt = bs_parameters_fixtures()
-    bs_model_det = BlackScholesModel(s0, tmt, rfr, sigma)
-    actual = bs_model_det.call(strike_k)
+def test_deterministic_price(
+    bs_model: BlackScholesModel, options_fixtures: tuple[float, float]
+):
+    tmt, strike_k = options_fixtures
+    actual = bs_model.call(tmt, strike_k)
     expected = 3.063
     assert round(actual, 3) == expected
 
-    actual = bs_model_det.put(strike_k)
+    actual = bs_model.put(tmt, strike_k)
     expected = 2.652
     assert round(actual, 3) == expected

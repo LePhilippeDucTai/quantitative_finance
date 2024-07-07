@@ -7,7 +7,7 @@ def test_derivatives():
     x = Variable(val)
     assert x.df == 1
 
-    y = x.pow(2)
+    y = x**2
     assert y.df == 3.5 * 2
 
     z = x.exp().sin()

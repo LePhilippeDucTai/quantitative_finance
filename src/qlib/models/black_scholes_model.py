@@ -103,7 +103,7 @@ class BlackScholesModel(Model):
     def put(self, time_horizon: int, k: float) -> float:
         """Calculate the price of a put option using call-put parity."""
         s, t = self.x0, time_horizon
-        return self.call(k) - s + k * np.exp(-self.r * t)
+        return self.call(time_horizon, k) - s + k * np.exp(-self.r * t)
 
     def delta(self, time_horizon: float, k: float) -> float:
         _d1 = d1(self.x0, k, self.r, self.sig, time_horizon)

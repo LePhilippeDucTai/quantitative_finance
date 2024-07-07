@@ -88,7 +88,7 @@ def main():
     x = Variable([1, 2, 3])
     a = Variable(1)
     z = x.exp() ** 2
-    y = ((x.exp() + a).sin() * z).exp() + a
+    y = x + a / z
     print(y)
 
 

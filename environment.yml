@@ -15,6 +15,7 @@ dependencies:
   - loguru
   - black
   - ruff
+  - xarray
   - pytest
   - jupyterlab
   - ipython

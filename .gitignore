@@ -2,3 +2,5 @@
 *.ipynb_checkpoints
 *.ipynb
 */qlib.egg-info/
+*.nbc
+*.nbi

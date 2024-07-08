@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 from typing import Any, Callable
 
-import numba
 import numpy as np
 from loguru import logger
 
@@ -86,21 +85,26 @@ class EulerSchemaJit(ItoProcess):
         super().__init__(*args, **kwargs)
 
     def mu_jit(self) -> Callable[[float, float, Any], float]:
-        return numba.njit(self.mu())
+        logger.warning("Not implemented yet !")
+        return
 
     def sigma_jit(self) -> Callable[[float, float, Any], float]:
-        return numba.njit(self.sigma())
+        logger.warning("Not implemented yet !")
+        return
 
     @time_it
     def mc_euler_jit(
         self,
-        size: tuple[int],
+        time_horizon: float,
+        size: tuple[int] = N_MC,
         n_dyadic: int = N_DYADIC,
         generator: np.random.Generator = DEFAULT_RNG,
     ) -> Path:
-        dt, n_t, t, g, xt = self.initialize_discretization(size, n_dyadic, generator)
+        dt, n_t, t, g, xt = self.initialize_discretization(
+            time_horizon, size, n_dyadic, generator
+        )
         xt = euler_discretization_jit(
-            self.mu_jit(), self.sigma_jit(), t, xt, n_t, g, dt, self.model_parameters
+            self.mu_jit(), self.sigma_jit(), t, xt, n_t, g, dt
         )
         return Path(t, xt)
 

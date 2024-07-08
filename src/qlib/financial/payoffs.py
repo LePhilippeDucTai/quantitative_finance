@@ -37,6 +37,8 @@ class Derivative:
         match kind:
             case ComputationKind.EULER:
                 return self.model.mc_euler(maturity, generator=generator)
+            case ComputationKind.EULER_JIT:
+                return self.model.mc_euler_jit(maturity, generator=generator)
             case ComputationKind.TERMINAL:
                 return self.model.mc_terminal(maturity, generator=generator)
             case ComputationKind.EXACT:
@@ -106,10 +108,7 @@ class Sensitivities:
         return fc.imag / h
 
     def gamma(
-        self,
-        seed_seq: np.random.SeedSequence,
-        kind: ComputationKind,
-        eps=DELTA_EPSILON,
+        self, seed_seq: np.random.SeedSequence, kind: ComputationKind, eps=DELTA_EPSILON
     ):
         d1 = self.delta(seed_seq, kind=kind, dx=eps)
         dm1 = self.delta(seed_seq, kind=kind, dx=-eps)

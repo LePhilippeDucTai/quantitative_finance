@@ -31,7 +31,7 @@ def main():
     european_option_parameters = EuropeanOptionParameters(maturity, strike_k)
 
     option = EuropeanCallOption(bs, european_option_parameters)
-    call_price_euler = option.npv(kind=ComputationKind.EULER)
+    call_price_euler = option.npv(kind=ComputationKind.EULER_JIT)
     call_price_exact = option.npv(kind=ComputationKind.EXACT)
     call_price_terminal = option.npv(kind=ComputationKind.TERMINAL)
 

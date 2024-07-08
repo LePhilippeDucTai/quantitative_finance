@@ -1,12 +1,15 @@
 """Black-Scholes model for pricing options."""
 
+import functools as ft
 from dataclasses import dataclass
+from typing import Callable
 
 import numpy as np
 import scipy.stats as ss
 from qlib.constant_parameters import DEFAULT_RNG, N_DYADIC, N_MC
 from qlib.financial.payoffs import PricingData
 from qlib.models.brownian import Path, brownian_trajectories
+from qlib.numerical.optimized_numba import bs_mu_jit, bs_sigma_jit
 from qlib.traits import ItoProcessParameters, Model, TermStructure
 from qlib.utils.timing import time_it
 from scipy.special import ndtr
@@ -44,11 +47,19 @@ class BlackScholesModel(Model):
         super().__init__(model_parameters, term_structure)
         self.model_parameters = model_parameters
 
-    def mu(self, t, x: float):
+    def mu(self, t: float, x: float):
         return x * self.r
 
-    def sigma(self, _, x: float):
+    def sigma(self, _: float, x: float):
         return x * self.sig
+
+    @ft.cache
+    def mu_jit(self) -> Callable[[float, float], float]:
+        return bs_mu_jit(self.r)
+
+    @ft.cache
+    def sigma_jit(self) -> Callable[[float, float], float]:
+        return bs_sigma_jit(self.sig)
 
     def sigma_derivative(self, t, x):
         return self.sig

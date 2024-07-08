@@ -64,7 +64,7 @@ class Variable:
             id = self.id
         else:
             f = self.f / other.f
-            df, dg = align_arrays(self.grad, other.f)
+            df, dg = align_arrays(self.grad, other.grad)
             grad = (df * other.f - dg * self.f) / (other.f**2)
             id = extract_id(grad)
         return Variable(id, f, grad)
@@ -103,6 +103,11 @@ class Variable:
         grad = self.grad / self.f
         return Variable(self.id, f, grad)
 
+    def sqrt(self):
+        f = np.sqrt(self.f)
+        grad = 0.5 * self.grad / f
+        return Variable(self.id, f, grad)
+
     def ndtr(self) -> Self:
         f = ndtr(self.f)
         grad = norm.pdf(self.f) * self.grad
@@ -113,7 +118,13 @@ def main():
     x = Variable("x", f=3)
     y = Variable("y", f=-1)
     z = Variable("z", f=2)
-    f = (x * y) * (y * z).sin()
+    a = Variable("a", f=0.5)
+    f = (
+        ((x * y) * (y * z).sin().exp().sqrt()).exp()
+        + x / z * y.exp()
+        - (x + z / a).sin()
+        + 32 * (a + x**2).sin()
+    )
     print(f)
 
 

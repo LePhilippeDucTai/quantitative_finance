@@ -43,7 +43,7 @@ def test_european_call_autodiff(bs_model: BlackScholesModel):
     denom = (sigma * t**0.5) ** (-1)
     d1: Variable = denom * ((s / k).log() + (r + 0.5 * sigma**2) * t)
     d2: Variable = d1 - sigma * (t**0.5)
-    pricing: Variable = s * d1.ndtr() - k * ((-1) * r * t).exp() * d2.ndtr()
+    pricing: Variable = s * d1.ndtr() - k * (-r * t).exp() * d2.ndtr()
 
     pricing_det = bs_model.call_det_pricing(t, k)
     np.testing.assert_almost_equal(pricing.grad.data[2], pricing_det.delta)

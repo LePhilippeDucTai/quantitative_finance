@@ -7,7 +7,9 @@ from scipy.stats import norm
 
 
 def make_gradient(grad: float, id: str | list):
-    return xa.DataArray([grad], coords={"a": list(id)})
+    ids = list(id)
+    n = len(ids)
+    return xa.DataArray([grad] * n, coords={"a": list(id)})
 
 
 def align_arrays(left: xa.DataArray, right: xa.DataArray) -> xa.DataArray:
@@ -16,6 +18,10 @@ def align_arrays(left: xa.DataArray, right: xa.DataArray) -> xa.DataArray:
 
 def extract_id(grad: xa.DataArray):
     return grad.coords["a"].values.tolist()
+
+
+def make_scalar(id, f: float):
+    return Variable(id, f, 0.0)
 
 
 class Variable:
@@ -29,14 +35,11 @@ class Variable:
 
     def __add__(self, other: Self):
         if isinstance(other, float) or isinstance(other, int):
-            f = self.f + other
-            grad = self.grad
-            id = self.id
-        else:
-            f = self.f + other.f
-            df, dg = align_arrays(self.grad, other.grad)
-            grad = df + dg
-            id = extract_id(grad)
+            other = make_scalar(self.id, f=other)
+        f = self.f + other.f
+        df, dg = align_arrays(self.grad, other.grad)
+        grad = df + dg
+        id = extract_id(grad)
         return Variable(id, f, grad)
 
     def __radd__(self, other: Self | float):
@@ -44,14 +47,11 @@ class Variable:
 
     def __mul__(self, other: Self):
         if isinstance(other, float) or isinstance(other, int):
-            f = self.f * other
-            grad = self.grad * other
-            id = self.id
-        else:
-            f = self.f * other.f
-            df, dg = align_arrays(self.grad, other.grad)
-            grad = df * other.f + dg * self.f
-            id = extract_id(grad)
+            other = make_scalar(self.id, f=other)
+        f = self.f * other.f
+        df, dg = align_arrays(self.grad, other.grad)
+        grad = df * other.f + dg * self.f
+        id = extract_id(grad)
         return Variable(id, f, grad)
 
     def __rmul__(self, other: Self | float):
@@ -59,29 +59,24 @@ class Variable:
 
     def __truediv__(self, other: Self | float):
         if isinstance(other, float) or isinstance(other, int):
-            f = self.f / other
-            grad = self.grad / other
-            id = self.id
-        else:
-            f = self.f / other.f
-            df, dg = align_arrays(self.grad, other.grad)
-            grad = (df * other.f - dg * self.f) / (other.f**2)
-            id = extract_id(grad)
+            other = make_scalar(self.id, f=other)
+        f = self.f / other.f
+        df, dg = align_arrays(self.grad, other.grad)
+        grad = (df * other.f - dg * self.f) / (other.f**2)
+        id = extract_id(grad)
         return Variable(id, f, grad)
 
     def __rtruediv__(self, other: Self | float):
-        if isinstance(other, float) or isinstance(other, int):
-            f = other / self.f
-            grad = -other * self.grad / self.f**2
-            id = self.id
-            return Variable(id, f, grad)
         return other.__truediv__(self)
 
     def __sub__(self, other: Self | float | int):
         return self + (-1) * other
 
     def __rsub__(self, other: Self | float | int):
-        return other + (-1) * self
+        return other - self
+
+    def __neg__(self):
+        return Variable(self.id, -self.f, -self.grad)
 
     def exp(self) -> Self:
         f = np.exp(self.f)
@@ -121,8 +116,8 @@ def main():
     a = Variable("a", f=0.5)
     f = (
         ((x * y) * (y * z).sin().exp().sqrt()).exp()
-        + x / z * y.exp()
-        - (x + z / a).sin()
+        - x / z * y.exp()
+        - (-x + z / a).sin()
         + 32 * (a + x**2).sin()
     )
     print(f)

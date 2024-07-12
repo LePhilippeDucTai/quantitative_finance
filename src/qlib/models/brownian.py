@@ -50,7 +50,6 @@ def brownian_bridge_trajectories(
     standard_brownian = brownian_trajectories(t, size, n, gen)
     k, w = standard_brownian.t, standard_brownian.x
     w_final = w[..., -1].reshape(-1, 1)
-    print(w.shape, w_final.shape)
     trajectories = w - (k / t) * w_final
     return Path(k, trajectories)
 

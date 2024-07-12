@@ -8,7 +8,10 @@ import numpy as np
 import scipy.stats as ss
 from qlib.constant_parameters import DEFAULT_RNG, N_DYADIC, N_MC
 from qlib.financial.payoffs import PricingData
-from qlib.models.brownian import Path, brownian_trajectories
+from qlib.models.brownian import (
+    Path,
+    brownian_trajectories_exact,
+)
 from qlib.numerical.optimized_numba import bs_mu_jit, bs_sigma_jit
 from qlib.traits import ItoProcessParameters, Model, TermStructure
 from qlib.utils.timing import time_it
@@ -25,7 +28,7 @@ def bs_exact_mc(
     generator: np.random.Generator,
 ) -> Path:
     """Exact simulation of the underlying in the BS model."""
-    brownian = brownian_trajectories(t, size=size, n=n_dyadic, gen=generator)
+    brownian = brownian_trajectories_exact(t, size=size, n=n_dyadic, gen=generator)
     tk = brownian.t
     λ = r - 0.5 * sigma**2
     xk = s0 * np.exp(λ * tk + sigma * brownian.x)

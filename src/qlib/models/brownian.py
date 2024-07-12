@@ -5,6 +5,7 @@ import numpy as np
 from qlib.models.path import Path, TimeGrid
 from qlib.utils.misc import to_tuple
 from qlib.utils.timing import time_it
+from scipy import interpolate
 
 DEFAULT_GENERATOR = np.random.default_rng()
 
@@ -54,7 +55,36 @@ def brownian_bridge_trajectories(
     return Path(k, trajectories)
 
 
+def brownian_bridge_enrich(path: Path, gen=DEFAULT_GENERATOR):
+    t, x = path.t, path.x
+    n_points = len(t) - 1
+    dt = 1 / n_points
+    t_max = t[-1]
+    enriched_t = np.linspace(0, t_max, 2 * n_points + 1)
+    noise = gen.normal(size=x.shape, scale=np.sqrt(t_max * dt * 0.5))[:, 1:]
+    f = interpolate.interp1d(t, x, axis=-1)
+    result = f(enriched_t)
+    result[:, 1::2] += noise
+    return Path(enriched_t, result)
+
+
+def brownian_trajectories_exact(
+    t: float, size: int | tuple, n=6, gen=DEFAULT_GENERATOR
+):
+    size = to_tuple(size)
+    i = 0
+    x0 = gen.normal(scale=np.sqrt(t), size=(*size, 2))
+    x0[..., 0] = 0.0
+    path = Path(np.linspace(0, t, 2), x0)
+    while i < n:
+        path = brownian_bridge_enrich(path, gen)
+        i += 1
+    return path
+
+
 if __name__ == "__main__":
-    t, size = 1, 5
-    paths = brownian_bridge_trajectories(t, size, n=12)
-    paths.plot()
+    t, size = 25, 100
+    gen = np.random.default_rng(113121)
+    paths = brownian_trajectories_exact(t, size, n=8, gen=gen)
+    # paths.plot()
+    plot_brownians(paths)

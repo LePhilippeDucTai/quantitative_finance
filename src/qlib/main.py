@@ -32,17 +32,17 @@ def main():
 
     option = EuropeanCallOption(bs, european_option_parameters)
     call_price_euler = option.npv(kind=ComputationKind.EULER_JIT)
-    call_price_exact = option.npv(kind=ComputationKind.EXACT)
+    call_price_exact = option.npv(kind=ComputationKind.EULER)
     call_price_terminal = option.npv(kind=ComputationKind.TERMINAL)
 
-    call_price_milstein = option.npv(kind=ComputationKind.MILSTEIN)
+    call_price_milstein = option.npv(kind=ComputationKind.EXACT)
     logger.info(f"{call_price_euler=}")
     logger.info(f"{call_price_exact=}")
     logger.info(f"{call_price_terminal=}")
     logger.info(f"{call_price_milstein=}")
 
     seed = np.random.SeedSequence(312111)
-    call_pricing = option.pricing(seed_seq=seed, kind=ComputationKind.TERMINAL)
+    call_pricing = option.pricing(seed_seq=seed, kind=ComputationKind.EXACT)
     logger.info(f"{call_pricing=}")
 
     call_det_pricing = bs.call_det_pricing(maturity, strike_k)

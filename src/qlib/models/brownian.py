@@ -42,3 +42,20 @@ def brownian_trajectories(
     y = gen.normal(scale=np.sqrt(dt), size=(*size, n_t))
     y[..., 0] = 0
     return Path(time_grid.t, y.cumsum(axis=-1))
+
+
+def brownian_bridge_trajectories(
+    t: float, size: int | tuple = 1, n=6, gen=DEFAULT_GENERATOR
+) -> Path:
+    standard_brownian = brownian_trajectories(t, size, n, gen)
+    k, w = standard_brownian.t, standard_brownian.x
+    w_final = w[..., -1].reshape(-1, 1)
+    print(w.shape, w_final.shape)
+    trajectories = w - (k / t) * w_final
+    return Path(k, trajectories)
+
+
+if __name__ == "__main__":
+    t, size = 1, 5
+    paths = brownian_bridge_trajectories(t, size, n=12)
+    paths.plot()

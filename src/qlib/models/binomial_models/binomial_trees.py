@@ -22,7 +22,9 @@ def binomial_tree(x, N, u, d):
 
 def crr_ud(sigma, dt):
     """Cox-Ross-Rubinstein up and down factors given sigma and dt."""
-    return np.exp(sigma * np.sqrt(dt)), np.exp(-sigma * np.sqrt(dt))
+    u = np.exp(sigma * np.sqrt(dt))
+    d = 1 / u
+    return u, d
 
 
 def jr_ud(r, sigma, dt):

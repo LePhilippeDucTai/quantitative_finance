@@ -4,40 +4,58 @@ from qlib.models.binomial_models.binomial_trees import BinomialTree
 
 
 @njit
-def rn_expectation(u, d, r, q, dt):
-    return (q * u + (1 - q) * d) * np.exp(-r * dt)
+def rn_expectation(u, d, r, q):
+    return (q * u + (1 - q) * d) * np.exp(-r)
 
 
 @njit
-def compute_induction(N, V, r, q, dt):
+def compute_induction(N, V, sr_lattice, q, dt):
     for j in range(N - 1, 0, -1):
         for i in range(j):
-            expected_value = rn_expectation(V[i, j], V[i + 1, j], r, q, dt)
+            r = sr_lattice[i, j - 1] * dt
+            expected_value = rn_expectation(V[i, j], V[i + 1, j], r, q)
             V[i, j - 1] = expected_value
     return V
 
 
 class EuropeanOption:
-    def __init__(self, model: BinomialTree):
+    def __init__(
+        self, maturity: int, model: BinomialTree, term_structure: BinomialTree
+    ):
         self.model = model
-        self.npv_lattice = None
+        self.maturity = maturity
+        self.term_structure = term_structure
+        self._npv_lattice = None
 
     def payoff(self, x):
         return x
 
+    def compute_induction(self, N, V, short_rate_lattice, q, dt):
+        return compute_induction(N, V, short_rate_lattice, q, dt)
+
     def npv(self):
-        lattice = self.model.lattice()
-        terminal_value = lattice[:, -1]
-        r, dt, q, N = self.model.r, self.model.dt, self.model.q, self.model.n_periods
-        V = np.zeros((N, N))
-        V[:, -1] = self.payoff(terminal_value)
-        self.npv_lattice = compute_induction(N, V, r, q, dt)
-        return self.npv_lattice[0, 0]
+        model_lattice = self.model.lattice()
+        short_rate_lattice = self.term_structure.lattice()
+        N = int(self.maturity // self.model.dt) + 1
+        V = np.triu(self.payoff(model_lattice[:N, :N]))
+        dt, q = self.model.dt, self.model.q
+        self._npv_lattice = self.compute_induction(N, V, short_rate_lattice, q, dt)
+        return self._npv_lattice[0, 0]
+
+    def npv_lattice(self):
+        self.npv()
+        return self._npv_lattice
 
 
 class EuropeanCallOption(EuropeanOption):
-    def __init__(self, model, K_strike):
-        self.model = model
+    def __init__(
+        self,
+        maturity: int,
+        model: BinomialTree,
+        term_structure: BinomialTree,
+        K_strike: float,
+    ):
+        super().__init__(maturity, model, term_structure)
         self.K_strike = K_strike
 
     def payoff(self, x):
@@ -45,8 +63,14 @@ class EuropeanCallOption(EuropeanOption):
 
 
 class EuropeanPutOption(EuropeanOption):
-    def __init__(self, model, K_strike):
-        self.model = model
+    def __init__(
+        self,
+        maturity: int,
+        model: BinomialTree,
+        term_structure: BinomialTree,
+        K_strike: float,
+    ):
+        super().__init__(maturity, model, term_structure)
         self.K_strike = K_strike
 
     def payoff(self, x):

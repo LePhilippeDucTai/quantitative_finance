@@ -1,19 +1,17 @@
 import numpy as np
 from numba import njit
 from qlib.models.binomial_models.binomial_trees import BinomialTree
+from qlib.models.binomial_models.european_options import EuropeanOption, rn_expectation
 
 
 @njit
-def rn_expectation(u, d, r, q, dt):
-    return (q * u + (1 - q) * d) * np.exp(-r * dt)
-
-
-@njit
-def compute_max_induction(N, V, P, r, q, dt):
+def compute_max_induction(N, V: np.ndarray, sr_lattice, q, dt):
+    payoffs = V.copy()
     for j in range(N - 1, 0, -1):
         for i in range(j):
-            expected_value = rn_expectation(V[i, j], V[i + 1, j], r, q, dt)
-            V[i, j - 1] = max(P[i, j - 1], expected_value)
+            r = sr_lattice[i, j - 1] * dt
+            expected_value = rn_expectation(V[i, j], V[i + 1, j], r, q)
+            V[i, j - 1] = max(payoffs[i, j - 1], expected_value)
     return V
 
 
@@ -23,28 +21,19 @@ def fill_z(M):
         raise ValueError("Inappropriate shape for matrix M. Needs a square one.")
 
 
-class AmericanOption:
-    def __init__(self, model: BinomialTree):
-        self.model = model
-        self.npv_lattice = None
+class AmericanOption(EuropeanOption):
+    def __init__(
+        self, maturity: int, model: BinomialTree, term_structure: BinomialTree
+    ):
+        super().__init__(maturity, model, term_structure)
 
-    def payoff(self, x):
-        return x
-
-    def npv(self):
-        lattice = self.model.lattice()
-        terminal_value = lattice[:, -1]
-        r, dt, q, N = self.model.r, self.model.dt, self.model.q, self.model.n_periods
-        V = np.zeros((N, N))
-        V[:, -1] = self.payoff(terminal_value)
-        payoff_value = self.payoff(lattice)
-        self.npv_lattice = compute_max_induction(N, V, payoff_value, r, q, dt)
-        return self.npv_lattice[0, 0]
+    def compute_induction(self, N, V, short_rate_lattice, q, dt):
+        return compute_max_induction(N, V, short_rate_lattice, q, dt)
 
 
 class AmericanCallOption(AmericanOption):
-    def __init__(self, model, K_strike):
-        self.model = model
+    def __init__(self, maturity, model, term_structure, K_strike):
+        super().__init__(maturity, model, term_structure)
         self.K_strike = K_strike
 
     def payoff(self, x):
@@ -52,8 +41,8 @@ class AmericanCallOption(AmericanOption):
 
 
 class AmericanPutOption(AmericanOption):
-    def __init__(self, model, K_strike):
-        self.model = model
+    def __init__(self, maturity, model, term_structure, K_strike):
+        super().__init__(maturity, model, term_structure)
         self.K_strike = K_strike
 
     def payoff(self, x):

@@ -54,13 +54,11 @@ def jr_q():
 class BinomialTree:
     """General binomial Tree model. Not to be used explicitely."""
 
-    def __init__(self, s0, r, sigma, T, dt):
+    def __init__(self, s0, T, dt: float = 1.0, u: float = 2.0, d: float = 0.5):
         self.s0 = s0
-        self.r = r
-        self.sigma = sigma
         self.T = T
         self.dt = dt
-        self.u, self.d = 2, 0.5
+        self.u, self.d = u, d
 
     def lattice(self):
         return binomial_tree(self.s0, self.n_periods, self.u, self.d)
@@ -74,11 +72,18 @@ class BinomialTree:
         return int(self.T // self.dt) + 1
 
 
+class FlatForward(BinomialTree):
+    def __init__(self, s0, T, dt: float = 1.0, u: float = 1, d: float = 1):
+        super().__init__(s0, T, dt, u, d)
+
+
 class CRRModel(BinomialTree):
     """Cox-Ross-Rubinstein Model class."""
 
-    def __init__(self, s0, r, sigma, T, dt):
-        super().__init__(s0, r, sigma, T, dt)
+    def __init__(self, s0, sigma, flat_ts: FlatForward, T, dt):
+        super().__init__(s0, T, dt)
+        self.sigma = sigma
+        self.r = flat_ts.s0
         self.u, self.d = crr_ud(sigma, dt)
 
     @property
@@ -89,9 +94,11 @@ class CRRModel(BinomialTree):
 class JRModel(BinomialTree):
     """Jarrow-Rudd Model class"""
 
-    def __init__(self, s0, r, sigma, T, dt):
-        super().__init__(s0, r, sigma, T, dt)
-        self.u, self.d = jr_ud(r, sigma, dt)
+    def __init__(self, s0, sigma, flat_ts: FlatForward, T, dt):
+        super().__init__(s0, T, dt)
+        self.r = flat_ts.s0
+        self.sigma = sigma
+        self.u, self.d = jr_ud(self.r, sigma, dt)
 
     @property
     def q(self):

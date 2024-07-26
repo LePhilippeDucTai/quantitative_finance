@@ -6,7 +6,7 @@ from qlib.models.binomial_models.binomial_trees import BinomialTree
 @njit
 def rn_expectation(u, d, r, q, dt):
     if dt == 1:
-        df = 1 / (1 + r * dt)
+        df = 1 / (1 + r)
     else:
         df = np.exp(-r * dt)
     return (q * u + (1 - q) * d) * df

@@ -1,15 +1,9 @@
-import numpy as np
-from qlib.models.binomial_models.binomial_trees import BinomialTree
-from qlib.models.binomial_models.european_options import EuropeanOption
-
-
-class FlatForward(BinomialTree):
-    def __init__(self, s0, T, dt: float = 1.0, u: float = 1, d: float = 1):
-        super().__init__(s0, T, dt, u, d)
-
-
-def to_exponential_rate(r: float) -> float:
-    return np.log(1 + r)
+from qlib.models.binomial_models.american_options import AmericanPutOption
+from qlib.models.binomial_models.binomial_trees import BinomialTree, FlatForward
+from qlib.models.binomial_models.european_options import (
+    EuropeanCallOption,
+    EuropeanOption,
+)
 
 
 def main():
@@ -17,11 +11,15 @@ def main():
     u, d = 1.25, 0.9
     t_max = 10
     maturity = 4
+
     term_structure = BinomialTree(r0, t_max, dt=1, u=u, d=d)
     flat_coupon = FlatForward(1.0, t_max)
     zcb = EuropeanOption(maturity, flat_coupon, term_structure)
-    print(term_structure.lattice())
-    print(zcb.npv_lattice())
+    zcb_call = EuropeanCallOption(2, zcb, term_structure, 0.84)
+    print(zcb.lattice())
+    print(zcb_call.lattice())
+    zcb_american_put = AmericanPutOption(3, zcb, term_structure, 0.88)
+    print(zcb_american_put.lattice())
 
 
 if __name__ == "__main__":

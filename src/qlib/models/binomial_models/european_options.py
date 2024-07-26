@@ -30,6 +30,8 @@ class EuropeanOption:
         self.maturity = maturity
         self.term_structure = term_structure
         self._npv_lattice = None
+        self.dt = model.dt
+        self.q = model.q
 
     def payoff(self, x):
         return x
@@ -40,13 +42,13 @@ class EuropeanOption:
     def npv(self):
         model_lattice = self.model.lattice()
         short_rate_lattice = self.term_structure.lattice()
-        N = int(self.maturity // self.model.dt) + 1
+        N = int(self.maturity // self.dt) + 1
         V = np.triu(self.payoff(model_lattice[:N, :N]))
-        dt, q = self.model.dt, self.model.q
+        dt, q = self.dt, self.q
         self._npv_lattice = self.compute_induction(N, V, short_rate_lattice, q, dt)
         return self._npv_lattice[0, 0]
 
-    def npv_lattice(self):
+    def lattice(self):
         self.npv()
         return self._npv_lattice
 

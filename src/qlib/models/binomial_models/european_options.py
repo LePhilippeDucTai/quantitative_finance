@@ -4,16 +4,20 @@ from qlib.models.binomial_models.binomial_trees import BinomialTree
 
 
 @njit
-def rn_expectation(u, d, r, q):
-    return (q * u + (1 - q) * d) * np.exp(-r)
+def rn_expectation(u, d, r, q, dt):
+    if dt == 1:
+        df = 1 / (1 + r * dt)
+    else:
+        df = np.exp(-r * dt)
+    return (q * u + (1 - q) * d) * df
 
 
 @njit
 def compute_induction(N, V, sr_lattice, q, dt):
     for j in range(N - 1, 0, -1):
         for i in range(j):
-            r = sr_lattice[i, j - 1] * dt
-            expected_value = rn_expectation(V[i, j], V[i + 1, j], r, q)
+            r = sr_lattice[i, j - 1]
+            expected_value = rn_expectation(V[i, j], V[i + 1, j], r, q, dt)
             V[i, j - 1] = expected_value
     return V
 

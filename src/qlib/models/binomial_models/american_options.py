@@ -9,16 +9,10 @@ def compute_max_induction(N, V: np.ndarray, sr_lattice, q, dt):
     payoffs = V.copy()
     for j in range(N - 1, 0, -1):
         for i in range(j):
-            r = sr_lattice[i, j - 1] * dt
-            expected_value = rn_expectation(V[i, j], V[i + 1, j], r, q)
+            r = sr_lattice[i, j - 1]
+            expected_value = rn_expectation(V[i, j], V[i + 1, j], r, q, dt)
             V[i, j - 1] = max(payoffs[i, j - 1], expected_value)
     return V
-
-
-def fill_z(M):
-    n, m = M.shape
-    if n != m:
-        raise ValueError("Inappropriate shape for matrix M. Needs a square one.")
 
 
 class AmericanOption(EuropeanOption):

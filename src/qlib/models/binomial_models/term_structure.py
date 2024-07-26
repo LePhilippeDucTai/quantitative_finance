@@ -17,7 +17,6 @@ def main():
     u, d = 1.25, 0.9
     t_max = 10
     maturity = 4
-    r0 = to_exponential_rate(r0)
     term_structure = BinomialTree(r0, t_max, dt=1, u=u, d=d)
     flat_coupon = FlatForward(1.0, t_max)
     zcb = EuropeanOption(maturity, flat_coupon, term_structure)

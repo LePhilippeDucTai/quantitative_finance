@@ -6,7 +6,13 @@ from qlib.models.binomial_models.european_options import (
     EuropeanCallOption,
     EuropeanOption,
 )
-from qlib.models.binomial_models.term_structure import ForwardCouponBond, FuturesOption
+from qlib.models.binomial_models.term_structure import (
+    ForwardCouponBond,
+    FuturesOption,
+    ShortRateLatticeCustom,
+    ZeroCouponBond,
+    forward_price_bond,
+)
 
 
 @pytest.fixture(name="term_structure")
@@ -31,6 +37,24 @@ def fixture_simple_zcb(term_structure: BinomialTree, flat_coupon: FlatForward):
 
 def test_zero_coupon_bond(zcb: EuropeanOption):
     np.testing.assert_almost_equal(zcb.npv(), 0.7721774)
+
+
+def test_zcb_with_custom_short_rate_term_structure():
+    ts = ShortRateLatticeCustom(
+        [
+            [0.02, 0.023, 0.025, 0.026],
+            [0, 0.019, 0.021, 0.022],
+            [0, 0, 0.018, 0.02],
+            [0, 0, 0, 0.015],
+        ]
+    )
+    zcb = ZeroCouponBond(3, ts)
+    np.testing.assert_almost_equal(zcb.npv(), 0.9402594670410548)
+
+
+def test_forward_price_coupon_bond(term_structure):
+    p0 = forward_price_bond(4, [0, 0, 0, 0, 0, 10, 110], term_structure)
+    np.testing.assert_almost_equal(p0, 103.37904544566824)
 
 
 def test_zero_coupon_bond_call(zcb: EuropeanOption, term_structure: BinomialTree):

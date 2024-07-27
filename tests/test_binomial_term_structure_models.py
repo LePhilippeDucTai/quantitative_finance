@@ -51,6 +51,9 @@ def test_zcb_with_custom_short_rate_term_structure():
     zcb = ZeroCouponBond(3, ts)
     np.testing.assert_almost_equal(zcb.npv(), 0.9402594670410548)
 
+    p0 = forward_price_bond(2, [0, 0, 0, 100], ts)
+    np.testing.assert_almost_equal(p0, 97.92012568117076)
+
 
 def test_forward_price_coupon_bond(term_structure):
     p0 = forward_price_bond(4, [0, 0, 0, 0, 0, 10, 110], term_structure)

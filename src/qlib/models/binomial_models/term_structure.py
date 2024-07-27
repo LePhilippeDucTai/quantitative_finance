@@ -51,9 +51,6 @@ def forward_price_bond(t: int, coupon_array: np.ndarray, term_structure: Binomia
     return cb.npv() / zcb.npv()
 
 
-# print(coupon_bond.lattice().round(4))
-
-
 class CapletOption(EuropeanCallOption):
     def __init__(
         self,
@@ -97,8 +94,6 @@ def main():
     coupon_array = [0, 0, 0, 0, 0, 10, 110]
     coupon_bond = ForwardCouponBond(coupon_array, term_structure)
     print(coupon_bond.lattice().round(4))
-    p0 = forward_price_bond(4, coupon_array, term_structure)
-    print(p0)
 
     futures_coupon_bond = FuturesOption(4, model=coupon_bond)
     print(futures_coupon_bond.lattice())
@@ -108,20 +103,6 @@ def main():
 
     # ts = BinomialTree(0.02, 3, u=1.15, d=0.95)
     # print(ts.lattice())
-    ts = ShortRateLatticeCustom(
-        [
-            [0.02, 0.023, 0.025, 0.026],
-            [0, 0.019, 0.021, 0.022],
-            [0, 0, 0.018, 0.02],
-            [0, 0, 0, 0.015],
-        ]
-    )
-
-    # Quizz
-    zcb = ZeroCouponBond(3, ts)
-    print(np.round(zcb.npv(), 4))
-    p0 = forward_price_bond(2, [0, 0, 0, 100], ts)
-    print(np.round(p0, 4))
 
     # coupon_bond = ForwardCouponBond([0, 0, 0, 100], term_structure)
     # print(coupon_bond.lattice().round(4))

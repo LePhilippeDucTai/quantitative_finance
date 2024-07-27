@@ -6,6 +6,7 @@ from qlib.models.binomial_models.european_options import (
     EuropeanCallOption,
     EuropeanOption,
 )
+from qlib.models.binomial_models.term_structure import ForwardCouponBond, FuturesOption
 
 
 @pytest.fixture(name="term_structure")
@@ -42,3 +43,17 @@ def test_zero_coupon_bond_american_put(
 ):
     zcb_call = AmericanPutOption(2, zcb, term_structure, 0.88)
     np.testing.assert_almost_equal(zcb_call.npv(), 0.1078226)
+
+
+@pytest.fixture(name="coupon_bond_model")
+def fixture_coupon_bond_model(term_structure):
+    return ForwardCouponBond([0, 0, 0, 0, 0, 0.1, 1.1], term_structure)
+
+
+def test_forward_coupon_bond(coupon_bond_model: ForwardCouponBond):
+    np.testing.assert_almost_equal(coupon_bond_model.npv(), 0.79826963)
+
+
+def test_futures_option_on_coupon_bond(coupon_bond_model):
+    futures_derivative = FuturesOption(4, coupon_bond_model)
+    np.testing.assert_almost_equal(futures_derivative.npv(), 1.03222019)

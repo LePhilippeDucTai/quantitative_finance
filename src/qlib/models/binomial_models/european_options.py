@@ -39,10 +39,14 @@ class EuropeanOption:
     def compute_induction(self, N, V, short_rate_lattice, q, dt):
         return compute_induction(N, V, short_rate_lattice, q, dt)
 
+    @property
+    def n_periods(self):
+        return int(self.maturity // self.dt) + 1
+
     def npv(self):
-        model_lattice = self.model.lattice()
         short_rate_lattice = self.term_structure.lattice()
-        N = int(self.maturity // self.dt) + 1
+        N = self.n_periods
+        model_lattice = self.model.lattice()
         V = np.triu(self.payoff(model_lattice[:N, :N]))
         dt, q = self.dt, self.q
         self._npv_lattice = self.compute_induction(N, V, short_rate_lattice, q, dt)

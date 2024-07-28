@@ -17,8 +17,8 @@ def zero_coupon_bond(maturity: int, term_structure):
 
 
 class ZeroCouponBond(EuropeanOption):
-    def __init__(self, maturity, term_structure):
-        model = FlatForward(1.0, maturity)
+    def __init__(self, maturity, term_structure, nominal: float = 1.0):
+        model = FlatForward(nominal, maturity)
         super().__init__(maturity, model, term_structure)
 
 
@@ -47,6 +47,22 @@ class FuturesOption(EuropeanOption):
     def __init__(self, maturity: int, model: BinomialTree):
         super().__init__(maturity, model, None)
         self.term_structure = BinomialTree(0.0, maturity, dt=1, u=0.5, d=0.5)
+
+
+class ForwardZCB:
+    def __init__(self, nominal: float, zcb_maturity: int, term_structure: BinomialTree):
+        self.nominal = nominal
+        self.zcb_maturity = zcb_maturity
+        self.term_structure = term_structure
+
+    def _coupon_bonds(self) -> ForwardCouponBond:
+        coupon_array = np.zeros(self.zcb_maturity + 1)
+        coupon_array[-1] = self.nominal
+        return ForwardCouponBond(coupon_array, self.term_structure)
+
+    def forward_price(self, t: int):
+        zcb = ZeroCouponBond(t, self.term_structure)
+        return self._coupon_bonds().npv() / zcb.npv()
 
 
 def forward_price_bond(t: int, coupon_array: np.ndarray, term_structure: BinomialTree):
@@ -198,14 +214,17 @@ def assignment():
     zcb = ZeroCouponBond(10, ts)
     print(np.round(zcb.npv() * 100, 2))
 
-    forward_zcb = EuropeanOption(4, zcb, ts)
     q2 = forward_price_bond(
         4, coupon_array=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 100], term_structure=ts
     )
     print(np.round(q2, 2))
+
+    forward_zcb = ForwardZCB(100, 10, ts)
+    print(np.round(forward_zcb.forward_price(4), 2))
+
     fwd = ForwardCouponBond([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 100], ts)
     futures = FuturesOption(4, fwd)
-    print(futures.npv())
+    print(np.round(futures.npv(), 2))
 
     zcb_call = AmericanCallOption(6, zcb, ts, 0.8)
     print(np.round(zcb_call.npv() * 100, 2))

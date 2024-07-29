@@ -7,6 +7,7 @@ from qlib.models.binomial_models.binomial_trees import BinomialTree, FlatForward
 from qlib.models.binomial_models.european_options import (
     EuropeanCallOption,
     EuropeanOption,
+    rn_expectation,
 )
 from qlib.utils.logger import logger
 
@@ -117,6 +118,64 @@ def arrow_debreu_lattice(term_structure_lattice: np.ndarray, q: float):
     return lattice
 
 
+@njit
+def compute_agg_induction(
+    N, V: np.ndarray, sr_lattice, q: float, dt: float
+) -> np.ndarray:
+    payoffs = V.copy()
+    for j in range(N - 1, 0, -1):
+        for i in range(j):
+            r = sr_lattice[i, j - 1]
+            expected_value = rn_expectation(V[i, j], V[i + 1, j], r, q, dt)
+            V[i, j - 1] = payoffs[i, j - 1] + expected_value
+    return V
+
+
+class SwapDerivative(EuropeanOption):
+    def __init__(
+        self, maturity: int, term_structure: BinomialTree, swap_rate: float, payer: bool
+    ):
+        """Swap derivative class.
+        Payer means paying fixed rate, receiving floating rate. (r - K)
+        Payer == False means receive fixed rate, paying floating rate (K - r).
+        """
+        super().__init__(maturity, term_structure, term_structure)
+        self.swap_rate = swap_rate
+        self.payer = payer
+        self.orient = 1 if payer else -1
+
+    def payoff(self, x: np.ndarray) -> np.ndarray:
+        return self.orient * (x - self.swap_rate) / (1 + x)
+
+    def compute_induction(
+        self, N: int, V: np.ndarray, short_rate_lattice: np.ndarray, q: float, dt: float
+    ) -> np.ndarray:
+        return compute_agg_induction(N, V, short_rate_lattice, q, dt)
+
+
+class Swaption(EuropeanCallOption):
+    def __init__(
+        self, swap_maturity: int, swaption_maturity, swap_rate: float, term_structure
+    ):
+        """Swaption.
+        Swap_maturity :
+        """
+        K_strike = 0.0
+        self.swaption_maturity = swaption_maturity
+        swap_derivative = SwapDerivative(
+            maturity=swap_maturity,
+            term_structure=term_structure,
+            swap_rate=swap_rate,
+            payer=True,
+        )
+        super().__init__(
+            maturity=swaption_maturity,
+            model=swap_derivative,
+            term_structure=term_structure,
+            K_strike=K_strike,
+        )
+
+
 class ForwardSwap:
     def __init__(
         self,
@@ -189,7 +248,7 @@ def main():
     # fixed rate : 7%
     # in arrears, rate seen at t = i - 1 to compute the payment at t = i
 
-    term_structure = BinomialTree(r0, 3, dt=1, u=u, d=d)
+    term_structure = BinomialTree(r0, 10, dt=1, u=u, d=d)
     fsw = ForwardSwap(term_structure, 0.07, 1_000_000, 1, 3, payer=False)
     print(fsw.npv())
     # coupon_bond = ForwardCouponBond([0, 0, 0, 100], term_structure)
@@ -207,6 +266,14 @@ def main():
     print(ad.round(4))
     fsw = ForwardSwap(ts, 0.07, 100_000, 1, 3, payer=False)
     print(fsw.npv().round(4))
+
+    swap_derivative = SwapDerivative(
+        maturity=5, term_structure=term_structure, swap_rate=0.05, payer=True
+    )
+    print(swap_derivative.lattice())
+
+    swaption = Swaption(5, 3, 0.05, term_structure)
+    print(swaption.lattice())
 
 
 def assignment():
@@ -231,5 +298,5 @@ def assignment():
 
 
 if __name__ == "__main__":
-    # main()
-    assignment()
+    main()
+    # assignment()

@@ -6,10 +6,12 @@ from qlib.models.binomial_models.european_options import (
     EuropeanCallOption,
     EuropeanOption,
 )
+from qlib.models.binomial_models.rates_options import FuturesOption
 from qlib.models.binomial_models.term_structure import (
-    ForwardCouponBond,
-    FuturesOption,
     ShortRateLatticeCustom,
+)
+from qlib.models.binomial_models.zero_coupon_bond import (
+    ForwardCouponBond,
     ZeroCouponBond,
     forward_price_bond,
 )

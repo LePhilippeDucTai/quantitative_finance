@@ -2,7 +2,7 @@ import yfinance as yf
 
 
 def fetch_market_data(symbol: str):
-    tick = yf.Ticker(symbol)
+    yf.Ticker(symbol)
 
 
 def main():

@@ -19,10 +19,10 @@ class ShortRateLatticeCustom:
 @njit
 def arrow_debreu_lattice(term_structure_lattice: np.ndarray, q: float):
     sr = term_structure_lattice
-    lattice = np.zeros_like(sr)
+    n, _ = sr.shape
+    lattice = np.zeros((n + 1, n + 1))
     lattice[0, 0] = 1
-    n = len(sr)
-    for k in range(0, n - 1):
+    for k in range(0, n):
         lattice[k + 1, k + 1] = q * lattice[k, k] / (1 + sr[k, k])
         lattice[0, k + 1] = (1 - q) * lattice[0, k] / (1 + sr[0, k])
         for s in range(1, k + 1):
@@ -49,7 +49,7 @@ def black_derman_toy_lattice(
     parameters[1] -> array of b_i's
     """
     a, b = parameters
-    a = a[:, np.newaxis] / 100
+    a = a[:, np.newaxis]
     b = b[:, np.newaxis]
     j = _time_matrix(n_dates)
     return np.triu(a * np.exp(b * j))
@@ -68,16 +68,23 @@ def spot_rates_from_zcb_prices(zcb_prices: np.ndarray) -> np.ndarray:
 
 
 def loss_function(marked: np.ndarray, model: np.ndarray) -> float:
-    return np.linalg.norm(marked - model)
+    return np.linalg.norm(marked - model) ** 2
 
 
 def black_derman_toy_loss(
-    parameters: np.ndarray, marked_spot_rates: np.ndarray
+    x: np.ndarray,
+    marked_spot_rates: np.ndarray,
+    a_fixed: np.ndarray | None,
+    b_fixed: np.ndarray | None,
 ) -> float:
-    n_dates = len(marked_spot_rates) + 1
-    params = parameters.reshape((2, -1))
+    n_dates = len(marked_spot_rates)
+    if (a_fixed is None) and (b_fixed is not None):
+        x = np.array([x, b_fixed]).flatten()
+    if (a_fixed is not None) and (b_fixed is None):
+        x = np.array([a_fixed, x]).flatten()
+    params = x.reshape((2, -1))
     model_spot_rates = compute_black_derman_toy_spot_rates(n_dates, params)
-    return loss_function(marked_spot_rates, model_spot_rates)
+    return loss_function(marked_spot_rates * 100, model_spot_rates * 100)
 
 
 def compute_black_derman_toy_spot_rates(n_dates: int, params: np.ndarray):
@@ -87,12 +94,28 @@ def compute_black_derman_toy_spot_rates(n_dates: int, params: np.ndarray):
     return spot_rates_from_zcb_prices(zcb_p)
 
 
-def black_derman_toy_calibration(marked_spot_rates: np.ndarray) -> np.ndarray:
-    n_dates = len(marked_spot_rates) + 1
-    a = 5 * np.ones(n_dates)
-    b = 0.005 * np.ones(n_dates)
-    x0 = np.array([a, b]).flatten()
-    return so.minimize(black_derman_toy_loss, x0=x0, args=(marked_spot_rates,))
+def black_derman_toy_calibration(
+    marked_spot_rates: np.ndarray,
+    a_fixed: np.ndarray | None = None,
+    b_fixed: np.ndarray | None = None,
+) -> np.ndarray:
+    n_dates = len(marked_spot_rates)
+    a = np.random.default_rng().uniform(size=n_dates + 1)
+    b = np.random.default_rng().uniform(size=n_dates + 1)
+    if a_fixed is not None:
+        x0 = b
+    elif b_fixed is not None:
+        x0 = a
+    else:
+        x0 = np.array([a, b]).flatten()
+    n = len(x0)
+    return so.minimize(
+        black_derman_toy_loss,
+        x0=x0,
+        args=(marked_spot_rates, a_fixed, b_fixed),
+        method="L-BFGS-B",
+        bounds=[(0, None)] * n,
+    )
 
 
 def main():
@@ -126,24 +149,51 @@ def main():
     )
     print(marked_spot_rates)
     ad = arrow_debreu_lattice(term_structure.lattice(), 0.5)
-
-    n_dates = len(marked_spot_rates) + 1
+    print(ad)
+    n_dates = len(marked_spot_rates)
     a = 5 * np.ones(n_dates) / 100
     b = 0.005 * np.ones(n_dates)
-    parameters = np.array([a, b])
-    loss = black_derman_toy_loss(parameters, marked_spot_rates)
-    # print(loss)
-    calib = black_derman_toy_calibration(marked_spot_rates)
-    x_opt = calib.x.reshape((2, -1))
+    parameters = a
+    bdt_lattice = black_derman_toy_lattice(np.array([a, b]), n_dates=n_dates)
+
+    loss = black_derman_toy_loss(
+        np.array([a, b]), marked_spot_rates, a_fixed=None, b_fixed=None
+    )
+    print(loss)
+    calib = black_derman_toy_calibration(marked_spot_rates, b_fixed=b)
+    # x_opt = calib.x.reshape((2, -1))
+    # print(calib.x)
     print(calib)
+    x_opt = np.array([calib.x, b])
     a, b = x_opt
+    print(x_opt)
     optimal_spot_rates = compute_black_derman_toy_spot_rates(n_dates, x_opt)
-    bdt = black_derman_toy_lattice(x_opt, n_dates)
-    print(optimal_spot_rates)
+    # # bdt = black_derman_toy_lattice(x_opt, n_dates)
+    print(optimal_spot_rates.round(4))
     print(marked_spot_rates)
-    print(bdt)
+    # loss = black_derman_toy_loss(
+    #     np.array([a, b]), marked_spot_rates, a_fixed=None, b_fixed=None
+    # )
+    # print(loss)
+    # print(bdt[:5, :5])
     # print(x_opt)
 
 
+def f(b):
+    r00 = 0.06
+    r10 = 0.054
+    z = 88.64
+    notional = 100
+    r11 = r10 * np.exp(b)
+    q = 0.5
+    return 1 / (1 + r00) * (q * notional / (1 + r11) + q * notional / (1 + r10)) - z
+
+
+def assignment():
+    result = so.root_scalar(f, x0=0.005)
+    print(np.round(result.root, 4))
+
+
 if __name__ == "__main__":
-    main()
+    # main()
+    assignment()

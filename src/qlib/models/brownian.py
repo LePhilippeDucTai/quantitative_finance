@@ -19,7 +19,7 @@ def plot_brownians(p: Path) -> None:
     ax.set_xlabel("Time")
     ax.set_ylabel("Asset Value")
     ic = 1.96 * np.sqrt(p.t)
-    ax.plot(p.t, ic, label="sqrt(t)", color="black", linestyle="--")
+    ax.plot(p.t, ic, label="1.96 * sqrt(t)", color="black", linestyle="--")
     ax.plot(p.t, -ic, color="black", linestyle="--")
     ax.legend()
     plt.show()
@@ -61,30 +61,35 @@ def brownian_bridge_enrich(path: Path, gen=DEFAULT_GENERATOR):
     dt = 1 / n_points
     t_max = t[-1]
     enriched_t = np.linspace(0, t_max, 2 * n_points + 1)
-    noise = gen.normal(size=x.shape, scale=np.sqrt(t_max * dt * 0.5))[:, 1:]
+    noise = gen.normal(size=x.shape, scale=np.sqrt(t_max * dt * 0.25))[:, 1:]
     f = interpolate.interp1d(t, x, axis=-1)
     result = f(enriched_t)
     result[:, 1::2] += noise
     return Path(enriched_t, result)
 
 
+def recursive_call(f, x, n, *args, **kwargs):
+    if n == 0:
+        return x
+    return recursive_call(f, f(x, *args, **kwargs), n - 1, *args, **kwargs)
+
+
+@time_it
 def brownian_trajectories_exact(
     t: float, size: int | tuple, n=6, gen=DEFAULT_GENERATOR
 ):
     size = to_tuple(size)
-    i = 0
     x0 = gen.normal(scale=np.sqrt(t), size=(*size, 2))
     x0[..., 0] = 0.0
-    path = Path(np.linspace(0, t, 2), x0)
-    while i < n:
-        path = brownian_bridge_enrich(path, gen)
-        i += 1
+    initial_path = Path(np.linspace(0, t, 2), x0)
+    path = recursive_call(brownian_bridge_enrich, initial_path, n, gen)
     return path
 
 
 if __name__ == "__main__":
-    t, size = 25, 100
-    gen = np.random.default_rng(113121)
-    paths = brownian_trajectories_exact(t, size, n=8, gen=gen)
+
+    t, size = 1, 100
+    gen = np.random.default_rng(5113311)
+    paths = brownian_trajectories_exact(t, size, n=10, gen=gen)
     # paths.plot()
     plot_brownians(paths)
